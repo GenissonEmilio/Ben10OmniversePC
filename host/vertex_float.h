@@ -5,7 +5,7 @@
 // those lanes and exponent-255 operands must use the exact integer oracle.
 // Keep exceptional bodies out of the hot register allocation. Clang can also
 // preserve the caller registers on this rare path, avoiding spills in the loop.
-// ALWAYS_SCOPED is only set for image 100, entered through the runtime hook;
+// ALWAYS_SCOPED is only set for images 100..103, entered through the runtime hook;
 // the boot adapter rejects CPUs without the instructions required by this TU.
 #include "spu_helpers.h"
 #include "vertex_float_env.h"
@@ -43,12 +43,12 @@ static inline __attribute__((always_inline)) u128 ben10_vertex_op(u128 a, u128 b
     default: result = _mm_fnmadd_ps(A, B, C); break;
     }
     const __m128i exponent = _mm_set1_epi32(0x7f800000), raw = _mm_castps_si128(result);
-    __m128i bad = _mm_or_si128(_mm_cmpeq_epi32(_mm_and_si128(x, exponent), exponent),
-                              _mm_cmpeq_epi32(_mm_and_si128(y, exponent), exponent));
-    if (op >= 3) bad = _mm_or_si128(bad, _mm_cmpeq_epi32(_mm_and_si128(z, exponent), exponent));
     const __m128i magnitude = _mm_and_si128(raw, _mm_set1_epi32(0x7fffffff));
-    // RTZ overflows saturate to IEEE max finite. Recompute that boundary too.
-    const __m128i valid = _mm_andnot_si128(bad, _mm_cmpgt_epi32(_mm_set1_epi32(0x7f7fffff), magnitude));
+    // An exponent-255 input is an IEEE infinity/NaN, so every supported
+    // arithmetic operation produces an infinity/NaN (including inf * 0).
+    // Checking the result therefore catches those inputs as well as RTZ
+    // overflow, which saturates to IEEE max finite. Recompute that boundary.
+    const __m128i valid = _mm_cmpgt_epi32(_mm_set1_epi32(0x7f7fffff), magnitude);
     // SPU denormals and both signed zeros are represented as positive zero.
     const __m128i cleared = _mm_andnot_si128(
         _mm_cmpeq_epi32(_mm_and_si128(raw, exponent), _mm_setzero_si128()), raw);

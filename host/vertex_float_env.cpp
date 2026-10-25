@@ -23,12 +23,13 @@ extern "C" uint64_t ps3_host_spu_float_enter(int image_id) {
 #ifdef BEN10_X86
     if (!ben10_vertex_float_supported()) return 0;
     // Other/nested jobs retain their normal host floating-point environment.
-    if (image_id != 100 && !ben10_vertex_rtz_active) return 0;
+    const bool accelerated = image_id >= 100 && image_id <= 103;
+    if (!accelerated && !ben10_vertex_rtz_active) return 0;
     const unsigned saved = _mm_getcsr();
     const uint64_t token = (1ull << 32) | (uint64_t(ben10_vertex_rtz_active) << 33) | saved;
-    ben10_vertex_rtz_active = image_id == 100;
+    ben10_vertex_rtz_active = accelerated;
     // Mask exceptions, truncate, and flush denormals only within this job.
-    _mm_setcsr(image_id == 100 ? (saved & ~0x6000u) | 0xffc0u : (saved & ~0xe040u) | 0x1f80u);
+    _mm_setcsr(accelerated ? (saved & ~0x6000u) | 0xffc0u : (saved & ~0xe040u) | 0x1f80u);
     return token;
 #else
     (void)image_id;

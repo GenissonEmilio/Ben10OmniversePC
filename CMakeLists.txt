@@ -11,6 +11,7 @@ set(PS3RECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ps3recomp" CACHE PATH
 option(BEN10_BUILD_GAME "Build the game from a locally generated lift" OFF)
 option(BEN10_SPU_AVX2 "Use AVX2 SPU helpers for this local machine" OFF)
 option(BEN10_VERTEX_FMA "Use scoped exact FMA3 for the identified vertex job" OFF)
+option(BEN10_VERTEX_CACHE "Cache the verified vertex loop registers" OFF)
 option(PS3RECOMP_BUILD_TESTS "Build runtime regressions" ON)
 option(PS3RECOMP_RSX_VULKAN "Build the Linux Vulkan backend" ON)
 option(PS3RECOMP_FFMPEG_RUNTIME "Decode media with runtime FFmpeg" ON)
@@ -25,7 +26,8 @@ if(BUILD_TESTING AND UNIX)
     add_test(NAME ben10_job_pool COMMAND test_ben10_job_pool)
     add_test(NAME ben10_job_pool_disabled COMMAND test_ben10_job_pool disabled)
     add_test(NAME ben10_job_pool_four COMMAND test_ben10_job_pool four)
-    set_tests_properties(ben10_job_pool ben10_job_pool_disabled ben10_job_pool_four PROPERTIES TIMEOUT 8)
+    add_test(NAME ben10_job_pool_pipeline COMMAND test_ben10_job_pool pipeline)
+    set_tests_properties(ben10_job_pool ben10_job_pool_disabled ben10_job_pool_four ben10_job_pool_pipeline PROPERTIES TIMEOUT 8)
     add_executable(test_ben10_window_offset tests/test_rsx_window_offset.c
         "${PS3RECOMP_DIR}/libs/video/rsx_dispatch.c")
     target_include_directories(test_ben10_window_offset PRIVATE "${PS3RECOMP_DIR}/include"
@@ -38,6 +40,29 @@ if(BUILD_TESTING AND UNIX)
 endif()
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+        find_package(Python3 REQUIRED COMPONENTS Interpreter)
+        set(vertex_fixture "${CMAKE_CURRENT_BINARY_DIR}/vertex-cache-fixture.c")
+        add_custom_command(OUTPUT "${vertex_fixture}"
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/generate_vertex_fixture.py" "${vertex_fixture}"
+            DEPENDS tests/generate_vertex_fixture.py tests/vertex_cache_fixture.c tools/optimize_vertex.py
+            VERBATIM)
+        add_executable(test_ben10_vertex_cache "${vertex_fixture}")
+        target_include_directories(test_ben10_vertex_cache PRIVATE host
+            "${PS3RECOMP_DIR}/include" "${PS3RECOMP_DIR}/runtime/spu")
+        target_compile_options(test_ben10_vertex_cache PRIVATE -O3 -UNDEBUG -mavx2 -fno-strict-aliasing)
+        add_test(NAME ben10_vertex_cache COMMAND test_ben10_vertex_cache)
+        set_tests_properties(ben10_vertex_cache PROPERTIES TIMEOUT 30)
+        set(skin_fixture "${CMAKE_CURRENT_BINARY_DIR}/skin-cache-fixture.c")
+        add_custom_command(OUTPUT "${skin_fixture}"
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tests/generate_vertex_fixture.py" "${skin_fixture}" return
+            DEPENDS tests/generate_vertex_fixture.py tests/vertex_cache_fixture.c tools/optimize_vertex.py
+            VERBATIM)
+        add_executable(test_ben10_skin_cache "${skin_fixture}")
+        target_include_directories(test_ben10_skin_cache PRIVATE host
+            "${PS3RECOMP_DIR}/include" "${PS3RECOMP_DIR}/runtime/spu")
+        target_compile_options(test_ben10_skin_cache PRIVATE -O3 -UNDEBUG -mavx2 -fno-strict-aliasing)
+        add_test(NAME ben10_skin_cache COMMAND test_ben10_skin_cache)
+        set_tests_properties(ben10_skin_cache PROPERTIES TIMEOUT 30)
         add_executable(test_ben10_vertex_env tests/test_vertex_env.cpp host/vertex_float_env.cpp)
         target_include_directories(test_ben10_vertex_env PRIVATE host)
         target_compile_definitions(test_ben10_vertex_env PRIVATE BEN10_VERTEX_FMA=1)
@@ -181,6 +206,35 @@ if(BEN10_BUILD_GAME)
     endif()
     set(SPU_JOB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/spu_jobs" CACHE PATH "Locally translated raw SPURS jobs")
     file(GLOB JOB_SOURCES CONFIGURE_DEPENDS "${SPU_JOB_DIR}/*/spu_recomp.c")
+    set(vertex_source "${SPU_JOB_DIR}/job_00844E80/spu_recomp.c")
+    set(skin_source "${SPU_JOB_DIR}/job_0084B600/spu_recomp.c")
+    if(BEN10_VERTEX_CACHE)
+        if(NOT BEN10_VERTEX_FMA)
+            message(FATAL_ERROR "BEN10_VERTEX_CACHE requires the validated FMA build")
+        endif()
+        set(vertex_cached "${CMAKE_CURRENT_BINARY_DIR}/vertex-cache/spu_recomp.c")
+        add_custom_command(OUTPUT "${vertex_cached}"
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/optimize_vertex.py"
+                --source "${vertex_source}" --output "${vertex_cached}"
+            DEPENDS "${vertex_source}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/optimize_vertex.py"
+            VERBATIM)
+        list(REMOVE_ITEM JOB_SOURCES "${vertex_source}")
+        list(APPEND JOB_SOURCES "${vertex_cached}")
+        set_source_files_properties("${vertex_cached}" PROPERTIES
+            INCLUDE_DIRECTORIES "${SPU_JOB_DIR}/job_00844E80;${CMAKE_CURRENT_SOURCE_DIR}/host")
+        set(vertex_source "${vertex_cached}")
+        set(skin_cached "${CMAKE_CURRENT_BINARY_DIR}/skin-cache/spu_recomp.c")
+        add_custom_command(OUTPUT "${skin_cached}"
+            COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/optimize_vertex.py"
+                --source "${skin_source}" --output "${skin_cached}" --function job_0084B600_spu_func_00000268
+            DEPENDS "${skin_source}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/optimize_vertex.py"
+            VERBATIM)
+        list(REMOVE_ITEM JOB_SOURCES "${skin_source}")
+        list(APPEND JOB_SOURCES "${skin_cached}")
+        set_source_files_properties("${skin_cached}" PROPERTIES
+            INCLUDE_DIRECTORIES "${SPU_JOB_DIR}/job_0084B600;${CMAKE_CURRENT_SOURCE_DIR}/host")
+        set(skin_source "${skin_cached}")
+    endif()
     if(JOB_SOURCES AND EXISTS "${SPU_JOB_DIR}/spu_jobs.c")
         list(APPEND JOB_SOURCES "${SPU_JOB_DIR}/spu_jobs.c")
         target_sources(Ben10OmniverseRecomp PRIVATE ${JOB_SOURCES})
@@ -241,13 +295,16 @@ if(BEN10_BUILD_GAME)
         if(NOT BEN10_SPU_AVX2)
             message(FATAL_ERROR "BEN10_VERTEX_FMA requires the local AVX2 build")
         endif()
-        set(vertex_source "${SPU_JOB_DIR}/job_00844E80/spu_recomp.c")
-        if(NOT EXISTS "${vertex_source}")
+        if(NOT BEN10_VERTEX_CACHE AND NOT EXISTS "${vertex_source}")
             message(FATAL_ERROR "The identified vertex kernel is missing")
         endif()
         set_property(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/host/vertex_float_env.cpp"
             APPEND PROPERTY COMPILE_DEFINITIONS BEN10_VERTEX_FMA=1)
-        set_property(SOURCE "${vertex_source}" APPEND PROPERTY COMPILE_OPTIONS
+        set(geometry_sources "${vertex_source}"
+            "${SPU_JOB_DIR}/job_0084E500/spu_recomp.c"
+            "${skin_source}"
+            "${SPU_JOB_DIR}/job_00843080/spu_recomp.c")
+        set_property(SOURCE ${geometry_sources} APPEND PROPERTY COMPILE_OPTIONS
             -mfma -frounding-math -DBEN10_VERTEX_ALWAYS_SCOPED=1
             -include "${CMAKE_CURRENT_SOURCE_DIR}/host/vertex_integer.h"
             -include "${CMAKE_CURRENT_SOURCE_DIR}/host/vertex_float.h")

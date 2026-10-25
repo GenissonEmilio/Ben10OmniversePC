@@ -37,6 +37,13 @@ static void wait_entered(unsigned count) {
 }
 int main(int argc,char** argv) {
     bool disabled=argc>1 && !std::strcmp(argv[1],"disabled");
+    bool pipeline=argc>1 && !std::strcmp(argv[1],"pipeline");
+    setenv("BEN10_JOB_PIPELINE",pipeline?"1":"0",1);
+    for (uint64_t command : {uint64_t(0),uint64_t(0x10001),uint64_t(0x10003),uint64_t(0x10004)})
+        assert(ps3_host_job_barrier(command)==!pipeline);
+    assert(!ps3_host_job_barrier(0x10000));
+    for (uint64_t command : {uint64_t(2),uint64_t(5),uint64_t(6),uint64_t(0x77),uint64_t(0x7f)})
+        assert(ps3_host_job_barrier(command));
     expected_workers=argc>1 && !std::strcmp(argv[1],"four") ? 4 : 2;
     setenv("PS3_JOB_WORKERS",disabled?"1":expected_workers==4?"4":"2",1);
     if(disabled) {

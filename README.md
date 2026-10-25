@@ -9,6 +9,11 @@ organização da experiência de importação desse projeto; PPU/SPU usam ps3rec
 fase funciona, mas desempenho e compatibilidade da campanha ainda estão em
 validação. Abrir o jogo e testar algumas ações não certifica o jogo inteiro.
 
+Os últimos ensaios de combate ficaram aproximadamente entre 10 e 18 quadros
+novos por segundo. A meta de 30 FPS não foi atingida. As experiências de
+paralelismo e envio Vulkan em lotes estão preservadas, desligadas por padrão;
+veja [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
+
 A execução nativa já chegou ao menu 3D, à criação/reabertura de save e à
 primeira fase **Training Time**, incluindo a cena 3D e os diálogos. Uma correção
 no registro RSX `WINDOW_OFFSET` recuperou a imagem que o pós-processamento

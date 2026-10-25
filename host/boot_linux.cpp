@@ -45,6 +45,7 @@
 #include <stdlib.h>
 #include "flat_vm.h"
 #include "vertex_float_env.h"
+#include "job_pool.h"
 
 extern "C" {
 uint32_t ppu_load_elf(const char* path);
@@ -303,6 +304,8 @@ extern "C" int  rsx_metal_backend_pump_messages(void);
 extern "C" int  rsx_vulkan_backend_init(uint32_t w, uint32_t h, const char* title);
 extern "C" void rsx_vulkan_backend_present(void);
 extern "C" int  rsx_vulkan_backend_pump_messages(void);
+extern "C" uint64_t rsx_vulkan_backend_completed_frames(void);
+extern "C" uint64_t rsx_vulkan_backend_completed_drawn_frames(void);
 #  define rsx_backend_init    rsx_vulkan_backend_init
 #  define rsx_backend_present rsx_vulkan_backend_present
 #  define rsx_backend_pump    rsx_vulkan_backend_pump_messages
@@ -461,9 +464,24 @@ extern "C" void ppu_report_guest_lrs(void);
 extern "C" const char* g_hle_inflight[];
 static DWORD WINAPI ben10_watchdog(LPVOID)
 {
+#ifdef PS3RECOMP_RSX_VULKAN
+    uint64_t previous = rsx_vulkan_backend_completed_drawn_frames();
+    uint64_t previous_ms = GetTickCount64();
+#endif
     for (;;) {
         Sleep(10000);
         fprintf(stderr, "[ben10-watchdog] flips=%u\n", cellGcm_flip_request_count());
+        ps3_host_job_report();
+#ifdef PS3RECOMP_RSX_VULKAN
+        const uint64_t now_ms = GetTickCount64();
+        const uint64_t completed = rsx_vulkan_backend_completed_drawn_frames();
+        fprintf(stderr, "[ben10-performance] new_frames=%llu fps=%.2f interval_ms=%llu presents=%llu\n",
+            (unsigned long long)completed,
+            (completed - previous) * 1000.0 / (now_ms - previous_ms),
+            (unsigned long long)(now_ms - previous_ms),
+            (unsigned long long)rsx_vulkan_backend_completed_frames());
+        previous = completed; previous_ms = now_ms;
+#endif
         ppu_report_guest_lrs();
         for (unsigned i = 0; i < 64; ++i)
             if (g_hle_inflight[i]) fprintf(stderr, "[ben10-watchdog] tid=%u inside %s\n", i, g_hle_inflight[i]);
@@ -512,13 +530,19 @@ static DWORD WINAPI vblank_ticker(LPVOID)
      * paced the game's main loop to ~0.5fps. Drive the ticks off REAL elapsed time
      * and catch up in a bounded burst so present latency never slows the game. */
     ULONGLONG next_tick = GetTickCount64();
+    unsigned fifo_idle_ms = 4;
+    if (const char* value = getenv("BEN10_FIFO_IDLE_MS")) {
+        char* end = nullptr;
+        const unsigned long parsed = strtoul(value, &end, 10);
+        if (end && !*end && parsed <= 4) fifo_idle_ms = (unsigned)parsed;
+    }
     for (;;) {
         /* Was Sleep(4). The FIFO kick event existed, was signalled on a dry
          * fence queue, and had no waiter -- so a guest starved for `get` or a
          * fence still paid the whole tick. Waiting on it keeps the same 4 ms
          * ceiling when nothing kicks, and drains on demand when something
          * does. */
-        cellGcm_fifo_kick_wait(4);
+        cellGcm_fifo_kick_wait(fifo_idle_ms);
         ULONGLONG now = GetTickCount64();
         int fired = 0;
         while ((long long)(now - next_tick) >= 0 && fired < 240) {

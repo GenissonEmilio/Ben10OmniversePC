@@ -1,0 +1,40 @@
+--- a/libs/video/rsx_vulkan_backend.c
++++ b/libs/video/rsx_vulkan_backend.c
+@@ -232,6 +232,7 @@
+     u32              clear_argb;
+     u32              last_center;
+     u32              presented;
++    u64              completed_frames;
+     const char*      dump_path;
+     u32              dump_every;       /* write every nth presented frame */
+ } vk_state;
+@@ -1972,6 +1973,7 @@
+     s_vk.presented++;
+     if (s_vk.dump_path && (s_vk.presented % s_vk.dump_every) == 0) vk_dump_ppm(px);
+     vk_present_window();
++    __atomic_add_fetch(&s_vk.completed_frames, 1, __ATOMIC_RELAXED);
+ }
+
+ /* present_mu held: a previous present finished, the present's command
+@@ -3908,6 +3910,11 @@
+     return s_vk.presented ? (0xFF000000u | s_vk.last_center) : 0u;
+ }
+
++u64 rsx_vulkan_backend_completed_frames(void)
++{
++    return __atomic_load_n(&s_vk.completed_frames, __ATOMIC_RELAXED);
++}
++
+ u32 rsx_vulkan_backend_guest_draws(void)
+ {
+     return s_vk.eng_active ? rsx_draw_engine_guest_draws() : s_g.last_draws;
+--- a/libs/video/rsx_vulkan_backend.h
++++ b/libs/video/rsx_vulkan_backend.h
+@@ -108,6 +108,7 @@
+
+ /* Draws of the last presented frame that ran the guest's own programs. */
+ u32  rsx_vulkan_backend_guest_draws(void);
++u64  rsx_vulkan_backend_completed_frames(void);
+
+ /* 1 when draws honour the depth bounds test: the draw engine drives the
+  * backend and the device has the depthBounds feature (lavapipe in Mesa 25

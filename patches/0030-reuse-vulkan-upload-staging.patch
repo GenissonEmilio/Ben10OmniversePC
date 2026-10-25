@@ -1,0 +1,65 @@
+--- a/libs/video/rsx_vulkan_backend.c
++++ b/libs/video/rsx_vulkan_backend.c
+@@ -2057,6 +2057,10 @@
+ } vk_eng_obj;
+
+ static vk_eng_obj s_eobj[VK_ENG_MAX_OBJ];
++/* Uploads are synchronous. Retain a bounded, coherently mapped staging
++ * allocation between them instead of allocating/freeing device memory for
++ * every dirty texture/rectangle. The fence still completes before reuse. */
++static vk_buffer s_eng_upload_staging;
+
+ /* Defined with the E2 pipeline state further down. */
+ static void vk_eng_drop_framebuffers(void);
+@@ -2124,11 +2128,26 @@
+                                 const void* src, u32 row_bytes)
+ {
+     if (tight > row_bytes) tight = row_bytes;
+-    vk_buffer st = {0};
+-    if (vk_create_host_buffer(&st, (VkDeviceSize)tight * rows, VK_BUFFER_USAGE_TRANSFER_SRC_BIT) ||
+-        !st.coherent) { vk_destroy_buffer(&st); return -1; }
++    vk_buffer temporary = {0};
++    vk_buffer* st = &temporary;
++    const VkDeviceSize bytes = (VkDeviceSize)tight * rows;
++    const VkDeviceSize cache_limit = 64u * 1024u * 1024u;
++    if (bytes <= cache_limit) {
++        st = &s_eng_upload_staging;
++        if (st->size < bytes || !st->buf) {
++            VkDeviceSize capacity = 65536u;
++            while (capacity < bytes) capacity *= 2;
++            vk_destroy_buffer(st);
++            if (vk_create_host_buffer(st, capacity, VK_BUFFER_USAGE_TRANSFER_SRC_BIT)) {
++                vk_destroy_buffer(st); return -1;
++            }
++        }
++    } else if (vk_create_host_buffer(st, bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT)) {
++        vk_destroy_buffer(st); return -1;
++    }
++    if (!st->coherent) { vk_destroy_buffer(st); return -1; }
+     for (u32 y = 0; y < rows; y++)
+-        memcpy((u8*)st.ptr + (size_t)y * tight, (const u8*)src + (size_t)y * row_bytes, tight);
++        memcpy((u8*)st->ptr + (size_t)y * tight, (const u8*)src + (size_t)y * row_bytes, tight);
+     int rc = vk_begin();
+     if (!rc) {
+         vk_barrier_image(img, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_GENERAL);
+@@ -2137,10 +2156,10 @@
+             .imageOffset = { (int32_t)x, (int32_t)y, 0 },
+             .imageExtent = { w, h, 1 },
+         };
+-        pvkCmdCopyBufferToImage(s_vk.cmd, st.buf, img, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
++        pvkCmdCopyBufferToImage(s_vk.cmd, st->buf, img, VK_IMAGE_LAYOUT_GENERAL, 1, &region);
+         rc = vk_submit_and_wait();
+     }
+-    vk_destroy_buffer(&st);
++    vk_destroy_buffer(&temporary);
+     return rc;
+ }
+
+@@ -2237,6 +2256,7 @@
+     vk_eng2_shutdown(user);
+     for (u32 i = 1; i < VK_ENG_MAX_OBJ; i++) vk_eng_release(user, i);
+     vk_eng_snapshot_pool_drain();
++    vk_destroy_buffer(&s_eng_upload_staging);
+ }
+
+ static void vk_eng_submit_and_wait(void* user, u32 reason)

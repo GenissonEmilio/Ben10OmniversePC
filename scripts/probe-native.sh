@@ -9,7 +9,7 @@ audio=${BEN10_PROBE_AUDIO_DRIVER:-dummy}
 window=${BEN10_PROBE_WINDOW:-1}
 binary=${BEN10_PROBE_BINARY:-$root/build/native/Ben10OmniverseRecomp}
 [[ "$seconds" =~ ^[0-9]+$ ]] && (( seconds > 0 && seconds <= 600 )) || exit 2
-[[ "$quota" == 200% || "$quota" == 300% || "$quota" == 400% ]] || exit 2
+[[ "$quota" == 200% || "$quota" == 300% || "$quota" == 400% || "$quota" == 500% || "$quota" == 600% ]] || exit 2
 case "$audio" in dummy|pulseaudio|pipewire|alsa) ;; *) exit 2 ;; esac
 [[ "$window" == 0 || "$window" == 1 ]] || exit 2
 [[ -f "$binary" && -x "$binary" ]] || exit 2

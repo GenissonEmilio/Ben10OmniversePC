@@ -1,0 +1,22 @@
+--- a/libs/spurs/cellSpurs.c
++++ b/libs/spurs/cellSpurs.c
+@@ -2677,6 +2677,7 @@
+     extern int ps3_host_job_submit(u32,u32,int,u32,
+         void (*)(u32,int,u32),void (*)(u32,int),void (*)(u32)) __attribute__((weak));
+     extern void ps3_host_job_drain(u32) __attribute__((weak));
++    extern int ps3_host_job_barrier(u64) __attribute__((weak));
+     extern void spurs_job_set_spu_num(u32) __attribute__((weak));
+ #endif
+     u32 pc = entry_ea, ret_pc = 0;
+@@ -2701,7 +2702,10 @@
+         u32 op  = (u32)(cmd & 7);
+         u32 ext = (u32)(cmd & 127);
+ #ifndef _WIN32
+-        if ((op != 0 || !cmd) && ps3_host_job_drain) ps3_host_job_drain(jc_ea);
++        /* The host may distinguish a pointer hop from a synchronization
++         * command. No hook preserves the conservative drain at every control. */
++        int needs_drain = ps3_host_job_barrier ? ps3_host_job_barrier(cmd) : (op != 0 || !cmd);
++        if (needs_drain && ps3_host_job_drain) ps3_host_job_drain(jc_ea);
+ #endif
+ 
+         /* Ben 10 pre-fills its producer ring with JTS (jump-to-self). The PPU

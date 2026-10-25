@@ -10,8 +10,24 @@
 #include <mutex>
 #include <thread>
 #include <vector>
+#include <chrono>
+#include <ctime>
 
 namespace {
+bool statistics_enabled() {
+    static const bool enabled = std::getenv("BEN10_JOB_STATS") != nullptr;
+    return enabled;
+}
+uint64_t wall_ns() {
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+uint64_t cpu_ns() {
+    timespec value{}; clock_gettime(CLOCK_THREAD_CPUTIME_ID,&value);
+    return uint64_t(value.tv_sec)*1000000000u + value.tv_nsec;
+}
+std::atomic<uint64_t> measured_jobs{},job_wall{},job_cpu{},drain_wall{},drains{},empty_drains{};
+std::atomic<uint64_t> commands[128]{};
 struct Job {
     uint32_t chain, address;
     int index;
@@ -37,8 +53,16 @@ class Pool {
                 job = queue.front(); queue.pop_front(); changed.notify_all();
             }
             job.set_spu(spu);
+            const bool measure = statistics_enabled();
+            const uint64_t begin = measure ? wall_ns() : 0;
+            const uint64_t cpu_begin = measure ? cpu_ns() : 0;
             job.execute(job.address, job.index, job.size);
             job.done(job.chain, job.index);
+            if (measure) {
+                ++measured_jobs;
+                job_wall += wall_ns()-begin;
+                job_cpu += cpu_ns()-cpu_begin;
+            }
             {
                 std::lock_guard lock(mutex);
                 if (!--pending.at(job.chain)) pending.erase(job.chain);
@@ -66,7 +90,11 @@ public:
     }
     void drain(uint32_t chain) {
         std::unique_lock lock(mutex);
+        const bool measure = statistics_enabled();
+        const uint64_t begin = measure ? wall_ns() : 0;
+        if (measure) { ++drains; if (pending.find(chain)==pending.end()) ++empty_drains; }
         changed.wait(lock, [&]{ return pending.find(chain) == pending.end(); });
+        if (measure) drain_wall += wall_ns()-begin;
     }
 };
 unsigned worker_count() {
@@ -110,4 +138,28 @@ extern "C" int ps3_host_job_submit(uint32_t chain,uint32_t job,int index,
 extern "C" void ps3_host_job_drain(uint32_t chain) {
     if (worker_count()==1) return;
     if (auto* pool=get_pool(false)) pool->drain(chain);
+}
+extern "C" int ps3_host_job_barrier(uint64_t command) {
+    const unsigned op=command&7u, ext=command&127u;
+    if (statistics_enabled()) ++commands[ext];
+    static const bool pipeline=[] {
+        const char* value=std::getenv("BEN10_JOB_PIPELINE");
+        return value && *value=='1';
+    }();
+    if (!pipeline) return op!=0 || command==0;
+    // JOB, NOP, RESET_PC, NEXT and CALL only advance the command walker.
+    // SYNC/LWSYNC, FLUSH, JOBLIST, GUARD, END, RET and ABORT keep their drain.
+    return op==2 || op==5 || op==6 || op==7;
+}
+extern "C" void ps3_host_job_report(void) {
+    if (!statistics_enabled()) return;
+    const uint64_t jobs=measured_jobs.exchange(0), calls=drains.exchange(0);
+    std::fprintf(stderr,"[ben10-jobs-profile] jobs=%llu work_wall_ms=%.2f work_cpu_ms=%.2f drains=%llu empty=%llu drain_ms=%.2f commands=",
+        (unsigned long long)jobs,job_wall.exchange(0)/1000000.0,job_cpu.exchange(0)/1000000.0,
+        (unsigned long long)calls,(unsigned long long)empty_drains.exchange(0),drain_wall.exchange(0)/1000000.0);
+    for (unsigned i=0;i<128;++i) {
+        uint64_t count=commands[i].exchange(0);
+        if (count) std::fprintf(stderr,"%02x:%llu,",i,(unsigned long long)count);
+    }
+    std::fputc('\n',stderr);
 }

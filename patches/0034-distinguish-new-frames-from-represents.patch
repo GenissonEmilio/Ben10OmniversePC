@@ -1,0 +1,81 @@
+--- a/libs/video/rsx_draw_engine.c
++++ b/libs/video/rsx_draw_engine.c
+@@ -2997,6 +2997,8 @@
+     g.last_flip_buffer = buffer_id & 7u;
+ }
+
++u32 rsx_draw_engine_pending_draws(void) { return g.guest_draws; }
++
+ u32 rsx_draw_engine_guest_draws(void)
+ {
+     return g.last_guest_draws;
+--- a/libs/video/rsx_draw_engine.h
++++ b/libs/video/rsx_draw_engine.h
+@@ -312,6 +312,7 @@
+ /* Draws that ran the guest's OWN programs in the last presented frame. A draw
+  * through the built-in pair is not one of them. */
+ u32  rsx_draw_engine_guest_draws(void);
++u32 rsx_draw_engine_pending_draws(void);
+
+ /* The centre pixel of the surface the last flip presented, as A8R8G8B8 --
+  * the convention the RSX clear colour arrives in, so a host can compare the
+--- a/libs/video/rsx_vulkan_backend.c
++++ b/libs/video/rsx_vulkan_backend.c
+@@ -233,6 +233,8 @@
+     u32              last_center;
+     u32              presented;
+     u64              completed_frames;
++    u64              completed_drawn_frames;
++    int              present_has_draws;
+     const char*      dump_path;
+     u32              dump_every;       /* write every nth presented frame */
+ } vk_state;
+@@ -1974,6 +1976,9 @@
+     if (s_vk.dump_path && (s_vk.presented % s_vk.dump_every) == 0) vk_dump_ppm(px);
+     vk_present_window();
+     __atomic_add_fetch(&s_vk.completed_frames, 1, __ATOMIC_RELAXED);
++    if (s_vk.present_has_draws)
++        __atomic_add_fetch(&s_vk.completed_drawn_frames, 1, __ATOMIC_RELAXED);
++    s_vk.present_has_draws = 0;
+ }
+
+ /* present_mu held: a previous present finished, the present's command
+@@ -2028,7 +2033,7 @@
+     if (!s_vk.device) return;
+     pthread_mutex_lock(&s_vk.present_mu);
+     VkCommandBuffer cb = vk_present_record_begin();
+-    if (cb) vk_present_record_end(cb);
++    if (cb) { s_vk.present_has_draws = s_g.draws != 0; vk_present_record_end(cb); }
+     pthread_mutex_unlock(&s_vk.present_mu);
+     s_g.last_draws = s_g.draws;
+     s_g.draws = 0;
+@@ -2404,6 +2409,7 @@
+                             (o->w == s_vk.width && o->h == s_vk.height) ? VK_FILTER_NEAREST
+                                                                         : VK_FILTER_LINEAR);
+         }
++        s_vk.present_has_draws = rsx_draw_engine_pending_draws() != 0;
+         vk_present_record_end(cb);
+     }
+     pthread_mutex_unlock(&s_vk.present_mu);
+@@ -3910,6 +3916,11 @@
+     return s_vk.presented ? (0xFF000000u | s_vk.last_center) : 0u;
+ }
+
++u64 rsx_vulkan_backend_completed_drawn_frames(void)
++{
++    return __atomic_load_n(&s_vk.completed_drawn_frames, __ATOMIC_RELAXED);
++}
++
+ u64 rsx_vulkan_backend_completed_frames(void)
+ {
+     return __atomic_load_n(&s_vk.completed_frames, __ATOMIC_RELAXED);
+--- a/libs/video/rsx_vulkan_backend.h
++++ b/libs/video/rsx_vulkan_backend.h
+@@ -109,6 +109,7 @@
+ /* Draws of the last presented frame that ran the guest's own programs. */
+ u32  rsx_vulkan_backend_guest_draws(void);
+ u64  rsx_vulkan_backend_completed_frames(void);
++u64  rsx_vulkan_backend_completed_drawn_frames(void);
+
+ /* 1 when draws honour the depth bounds test: the draw engine drives the
+  * backend and the device has the depthBounds feature (lavapipe in Mesa 25

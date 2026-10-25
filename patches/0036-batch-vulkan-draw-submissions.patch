@@ -1,0 +1,63 @@
+--- a/libs/video/rsx_vulkan_backend.c
++++ b/libs/video/rsx_vulkan_backend.c
+@@ -3356,6 +3356,31 @@
+ };
+ static struct vk_eng_draw_slot s_draw_slots[VK_ENG_DRAW_SLOTS];
+ static u32 s_draw_next;
++static VkCommandBuffer s_draw_batch_commands[VK_ENG_DRAW_SLOTS];
++static struct vk_eng_draw_slot* s_draw_batch_slots[VK_ENG_DRAW_SLOTS];
++static u32 s_draw_batch_count;
++static int vk_eng_batch_enabled(void)
++{
++    static int enabled = -1;
++    if (enabled < 0) {
++        const char* value = getenv("PS3RECOMP_VK_BATCH_DRAWS");
++        enabled = value && *value == '1';
++    }
++    return enabled;
++}
++static int vk_eng_batch_flush(void)
++{
++    if (!s_draw_batch_count) return 0;
++    struct vk_eng_draw_slot* last = s_draw_batch_slots[s_draw_batch_count - 1];
++    VkSubmitInfo info = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
++        .commandBufferCount = s_draw_batch_count, .pCommandBuffers = s_draw_batch_commands };
++    VK_CHECK(pvkResetFences(s_vk.device, 1, &last->fence), "vkResetFences(draw batch)");
++    VK_CHECK(vk_queue_submit(&info, last->fence), "vkQueueSubmit(draw batch)");
++    VK_CHECK(pvkWaitForFences(s_vk.device, 1, &last->fence, VK_TRUE, UINT64_MAX), "vkWaitForFences(draw batch)");
++    for (u32 i = 0; i < s_draw_batch_count; ++i) s_draw_batch_slots[i]->pending = 0;
++    s_draw_batch_count = 0;
++    return 0;
++}
+ static u32 vk_eng_async_count(void)
+ {
+     static int count = -1;
+@@ -3369,6 +3394,7 @@
+ }
+ static void vk_eng_flush_draws(void)
+ {
++    if (vk_eng_batch_flush()) return;
+     for (u32 i = 0; i < VK_ENG_DRAW_SLOTS; ++i) {
+         struct vk_eng_draw_slot* slot = &s_draw_slots[i];
+         if (slot->pending && pvkWaitForFences(s_vk.device, 1, &slot->fence, VK_TRUE, UINT64_MAX) == VK_SUCCESS)
+@@ -3406,6 +3432,7 @@
+     const u32 count = vk_eng_async_count();
+     if (!count) return NULL;
+     struct vk_eng_draw_slot* slot = &s_draw_slots[s_draw_next++ % count];
++    if (slot->pending == 2 && vk_eng_batch_flush()) return NULL;
+     if (slot->pending) {
+         if (pvkWaitForFences(s_vk.device, 1, &slot->fence, VK_TRUE, UINT64_MAX) != VK_SUCCESS) return NULL;
+         slot->pending = 0;
+@@ -3443,6 +3470,12 @@
+ static int vk_eng_draw_submit(struct vk_eng_draw_slot* slot)
+ {
+     VK_CHECK(pvkEndCommandBuffer(slot->command), "vkEndCommandBuffer(draw)");
++    if (vk_eng_batch_enabled()) {
++        s_draw_batch_commands[s_draw_batch_count] = slot->command;
++        s_draw_batch_slots[s_draw_batch_count++] = slot;
++        slot->pending = 2;
++        return s_draw_batch_count == vk_eng_async_count() ? vk_eng_batch_flush() : 0;
++    }
+     VkSubmitInfo info = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+         .commandBufferCount = 1, .pCommandBuffers = &slot->command };
+     VK_CHECK(pvkResetFences(s_vk.device, 1, &slot->fence), "vkResetFences(draw)");
