@@ -44,6 +44,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "flat_vm.h"
+#include "vertex_float_env.h"
 
 extern "C" {
 uint32_t ppu_load_elf(const char* path);
@@ -1119,6 +1120,10 @@ static LONG WINAPI vm_commit_veh(EXCEPTION_POINTERS* ep)
 
 int main(int argc, char** argv)
 {
+    if (ben10_vertex_float_required() && !ben10_vertex_float_supported()) {
+        fprintf(stderr, "This local vertex build requires AVX2 and FMA3; rebuild with BEN10_VERTEX_FMA=OFF.\n");
+        return 2;
+    }
     /* <PPU ELF> [--username NAME] [--psnr host[:port]], flags in any order. */
     const char* elf = NULL;
     const char* username = NULL;

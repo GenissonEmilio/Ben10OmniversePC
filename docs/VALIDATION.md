@@ -11,13 +11,13 @@ BLUS31017 01.00, importado localmente. Nenhum dado do jogo está no Git.
   dois de construtores SPU identificados pelos metadados ELF, um da seleção de
   exports SRE, um de publicação de tarefas antes da espera, três de variantes
   OVIS e um de consumidores independentes de metadados/pixels de vídeo.
-- 31 testes CTest passaram, incluindo as regressões locais de janela RSX,
+- 35 testes CTest passaram, incluindo as regressões locais de janela RSX,
   relatórios de controle e executor paralelo.
 - Os testes públicos de flips GCM, scheduler SPURS e tabelas de saltos passaram.
 - AVX2: oito milhões de casos de ponto flutuante e 200 mil casos de `shufb`
   coincidiram com a referência escalar. Não são medições de FPS do jogo.
-- Os 28 patches reaplicam em ordem à revisão fixa do SDK e reproduzem exatamente
-  os 20 arquivos do SDK alterados na validação local.
+- Os 29 patches reaplicam em ordem à revisão fixa do SDK e reproduzem exatamente
+  os 21 arquivos do SDK alterados na validação local.
 - 15.115 funções PPU do jogo, 22 imagens SPU residentes, quatro jobs brutos e
   21 variantes de plugins SPU foram traduzidos e vinculados localmente.
 - Também foram traduzidos onze módulos PPU de mídia do firmware 4.25 do próprio
@@ -110,6 +110,37 @@ O contador de flips observou cerca de 12–14/s na introdução e 8–12/s em pa
 do combate; continua insuficiente para considerar o port pronto. A comparação
 não isola cenas idênticas entre builds, portanto não atribui uma porcentagem
 de ganho no jogo às novas operações.
+
+A investigação posterior do port macOS e as novas otimizações x86 estão em
+[PERFORMANCE.md](PERFORMANCE.md). O hook do patch 0029 limita o ambiente de
+ponto flutuante ao job de geometria 100. O caminho normal e o caminho com
+entrada delimitada passaram separadamente pela suíte de oito milhões de
+casos. As seis operações inteiras passaram por dois milhões de vetores com
+oráculos independentes; quatro threads verificaram o aninhamento de jobs e
+restauração exata do MXCSR em mil repetições por thread.
+
+O replay de uma entrada real do kernel, com 4.516 iterações, consumiu mediana
+1.076,785 µs na base e 655,102 µs com as duas otimizações, com todos os bytes
+finais de registradores/LS idênticos nas doze execuções. Isso mede o kernel,
+sem prometer a mesma proporção de ganho em FPS.
+
+Dois ensaios headless de 360 s usaram dois workers, CPU de 400%, resolução
+1280×720, áudio dummy e dump a cada dez presents. A versão anterior observou
+aproximadamente 9–13,5 flips/s em partes da introdução e 9–12 no combate/tutorial;
+a otimizada, 15–16,6 em partes da introdução e 8–15 no combate/tutorial. A cena
+não ficou idêntica em todos os intervalos; houve comandos adicionais para
+fechar tutoriais e transformar o personagem. Esses números descrevem as
+execuções, sem isolar um ganho percentual no FPS. A otimizada carregou a arena,
+renderizou Four Arms e respondeu aos comandos de movimento e ataque.
+
+O ensaio final abriu uma janela SDL fullscreen de 1920×1080, com imagem interna
+1280×720 e stream PulseAudio float32 estéreo de 48 kHz ativo e sem mute. Com
+dumps espaçados a cada 120 presents, partes da introdução observaram cerca de
+17–18 flips/s. O binário do build automático final foi idêntico por SHA-256 ao
+usado nessa execução. O combate continua abaixo da taxa original de 30 Hz.
+Eventos SDL da própria janela também confirmaram a transformação com a
+seta para cima e Escape abrindo a pausa. A captura da pausa com Four Arms
+ao fundo está em `artifacts/live54-keyboard-pause.png`.
 
 O teste PulseAudio abriu o stream do próprio processo. Uma captura isolada desse
 stream, com roteamento temporário restaurado ao final, mediu 966.656 amostras,

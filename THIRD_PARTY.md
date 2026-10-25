@@ -18,6 +18,9 @@
   [andrebrumdev/ben10-omniverse-recomp](https://github.com/andrebrumdev/ben10-omniverse-recomp).
   O fork privado necessário ao build original não está disponível neste projeto.
   Não copiamos o código do host macOS; o boot Linux usa o runtime público MIT.
+  A revisão `9f534e239582f3add98316804d4f011e2b31a454` e suas notas de
+  desempenho orientaram uma implementação independente dos helpers x86.
+  O método e os resultados locais estão em `docs/PERFORMANCE.md`.
 - A branch pública `feat/engine-fixes-from-gow2-ben10` de
   [andrebrumdev/ps3recomp-fork](https://github.com/andrebrumdev/ps3recomp-fork),
   revisão `96dacc05bee47b91cf8851f33e054083d6d8653b`, foi inspecionada como

@@ -1,0 +1,20 @@
+--- a/runtime/spu/spurs_job.c
++++ b/runtime/spu/spurs_job.c
+@@ -393,7 +393,17 @@
+      * and trips its parameter guard, which HALTS -- ending the run. So the
+      * HALT-ASSERT heqi 0x1650 seen once per jm2 job is NORMAL COMPLETION
+      * noise, not a failure: the job's real work finished before the jump. */
++#if defined(__GNUC__) && !defined(_WIN32)
++    extern uint64_t ps3_host_spu_float_enter(int) __attribute__((weak));
++    extern void ps3_host_spu_float_leave(uint64_t) __attribute__((weak));
++    uint64_t float_token=0;
++    if (ps3_host_spu_float_enter && ps3_host_spu_float_leave)
++        float_token=ps3_host_spu_float_enter(image_id);
++#endif
+     spu_run_with_halt(entry, &ctx);
++#if defined(__GNUC__) && !defined(_WIN32)
++    if (ps3_host_spu_float_leave) ps3_host_spu_float_leave(float_token);
++#endif
+
+     /* Capture the job's outbound mailbox. These are LS POINTERS TO STRINGS for
+      * the SPU printf service, NOT query results -- value 0x83C0 from the sound

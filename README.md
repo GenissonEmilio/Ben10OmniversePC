@@ -138,6 +138,16 @@ O build local ativa AVX2 apenas quando o processador oferece esse recurso.
 As regressões verificam a aritmética vetorial contra a referência escalar;
 essa verificação não é uma medição de FPS do jogo.
 
+Em CPUs locais com AVX2 e FMA3, o script também ativa o caminho exato de
+geometria delimitado à thread do job. Um replay do mesmo trabalho consumiu cerca
+de 39% menos tempo, com saída idêntica; isso não equivale
+a 39% mais FPS. A investigação e os limites estão em
+[docs/PERFORMANCE.md](docs/PERFORMANCE.md). Para recompilar pelo caminho anterior:
+
+```bash
+BEN10_VERTEX_FMA=OFF scripts/build-native.sh
+```
+
 Nada derivado do jogo deve ser adicionado ao Git. Dados, código traduzido,
 firmware, saves, logs, binários e chaves são ignorados. Consulte
 [THIRD_PARTY.md](THIRD_PARTY.md) para a procedência do código aberto.

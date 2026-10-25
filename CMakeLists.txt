@@ -10,6 +10,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(PS3RECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/ps3recomp" CACHE PATH "Pinned runtime")
 option(BEN10_BUILD_GAME "Build the game from a locally generated lift" OFF)
 option(BEN10_SPU_AVX2 "Use AVX2 SPU helpers for this local machine" OFF)
+option(BEN10_VERTEX_FMA "Use scoped exact FMA3 for the identified vertex job" OFF)
 option(PS3RECOMP_BUILD_TESTS "Build runtime regressions" ON)
 option(PS3RECOMP_RSX_VULKAN "Build the Linux Vulkan backend" ON)
 option(PS3RECOMP_FFMPEG_RUNTIME "Decode media with runtime FFmpeg" ON)
@@ -36,6 +37,34 @@ if(BUILD_TESTING AND UNIX)
     add_test(NAME ben10_flat_vm COMMAND test_ben10_flat_vm)
 endif()
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+        add_executable(test_ben10_vertex_env tests/test_vertex_env.cpp host/vertex_float_env.cpp)
+        target_include_directories(test_ben10_vertex_env PRIVATE host)
+        target_compile_definitions(test_ben10_vertex_env PRIVATE BEN10_VERTEX_FMA=1)
+        target_compile_options(test_ben10_vertex_env PRIVATE -O2 -UNDEBUG)
+        target_link_libraries(test_ben10_vertex_env PRIVATE pthread)
+        add_test(NAME ben10_vertex_environment COMMAND test_ben10_vertex_env)
+        add_executable(test_ben10_vertex_float tests/test_vertex_float.c host/vertex_float_env.cpp)
+        target_include_directories(test_ben10_vertex_float PRIVATE host
+            "${PS3RECOMP_DIR}/include" "${PS3RECOMP_DIR}/runtime/spu")
+        target_compile_definitions(test_ben10_vertex_float PRIVATE BEN10_VERTEX_FMA=1)
+        target_compile_options(test_ben10_vertex_float PRIVATE -O3 -UNDEBUG -mavx2 -mfma -frounding-math -ffp-contract=off)
+        target_link_libraries(test_ben10_vertex_float PRIVATE m)
+        add_test(NAME ben10_vertex_float COMMAND test_ben10_vertex_float)
+        add_executable(test_ben10_vertex_scoped tests/test_vertex_float.c host/vertex_float_env.cpp)
+        target_include_directories(test_ben10_vertex_scoped PRIVATE host
+            "${PS3RECOMP_DIR}/include" "${PS3RECOMP_DIR}/runtime/spu")
+        target_compile_definitions(test_ben10_vertex_scoped PRIVATE BEN10_VERTEX_FMA=1 BEN10_VERTEX_ALWAYS_SCOPED=1)
+        target_compile_options(test_ben10_vertex_scoped PRIVATE -O3 -UNDEBUG -mavx2 -mfma -frounding-math -ffp-contract=off)
+        target_link_libraries(test_ben10_vertex_scoped PRIVATE m)
+        add_test(NAME ben10_vertex_scoped COMMAND test_ben10_vertex_scoped)
+        add_executable(test_ben10_vertex_integer tests/test_vertex_integer.c)
+        target_include_directories(test_ben10_vertex_integer PRIVATE host
+            "${PS3RECOMP_DIR}/include" "${PS3RECOMP_DIR}/runtime/spu")
+        target_compile_options(test_ben10_vertex_integer PRIVATE -O3 -UNDEBUG -mavx2 -fno-strict-aliasing)
+        add_test(NAME ben10_vertex_integer COMMAND test_ben10_vertex_integer)
+        set_tests_properties(ben10_vertex_environment ben10_vertex_float ben10_vertex_scoped ben10_vertex_integer PROPERTIES TIMEOUT 30)
+    endif()
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(BEN10_SDL2 REQUIRED IMPORTED_TARGET sdl2)
     add_executable(test_ben10_pad_file tests/test_pad_file.c
@@ -128,6 +157,7 @@ if(BEN10_BUILD_GAME)
         "${CMAKE_CURRENT_SOURCE_DIR}/host/boot_linux.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/host/job_pool.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/host/keyboard_state.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/host/vertex_float_env.cpp"
         "${PS3RECOMP_DIR}/runtime/ppu/ppu_loader.cpp"
         "${PS3RECOMP_DIR}/runtime/ppu/ppu_hle.cpp"
         "${PS3RECOMP_DIR}/runtime/ppu/ppu_fs.cpp"
@@ -206,6 +236,21 @@ if(BEN10_BUILD_GAME)
         if(BEN10_SPU_AVX2)
             set_property(SOURCE ${BEN10_ALL_SPU_SOURCES} APPEND PROPERTY COMPILE_OPTIONS -mavx2)
         endif()
+    endif()
+    if(BEN10_VERTEX_FMA)
+        if(NOT BEN10_SPU_AVX2)
+            message(FATAL_ERROR "BEN10_VERTEX_FMA requires the local AVX2 build")
+        endif()
+        set(vertex_source "${SPU_JOB_DIR}/job_00844E80/spu_recomp.c")
+        if(NOT EXISTS "${vertex_source}")
+            message(FATAL_ERROR "The identified vertex kernel is missing")
+        endif()
+        set_property(SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/host/vertex_float_env.cpp"
+            APPEND PROPERTY COMPILE_DEFINITIONS BEN10_VERTEX_FMA=1)
+        set_property(SOURCE "${vertex_source}" APPEND PROPERTY COMPILE_OPTIONS
+            -mfma -frounding-math -DBEN10_VERTEX_ALWAYS_SCOPED=1
+            -include "${CMAKE_CURRENT_SOURCE_DIR}/host/vertex_integer.h"
+            -include "${CMAKE_CURRENT_SOURCE_DIR}/host/vertex_float.h")
     endif()
     message(WARNING "Experimental PPU boot target. Ben 10 Omniverse SPU jobs and rendering still require validation.")
 endif()
