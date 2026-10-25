@@ -5,19 +5,48 @@ Ben 10 Omniverse. O arquivo fornecido foi identificado como PS3: o runtime PS2
 do God of War II não é compatível com ele. Reaproveitamos o leitor de disco e a
 organização da experiência de importação desse projeto; PPU/SPU usam ps3recomp.
 
-**Ainda não há port jogável validado nem release.** Este repositório acompanha
-o trabalho real de importação, tradução, compilação e diagnóstico. Não confunda
-compilar o executável ou abrir uma janela com validar gameplay.
+**Prévia nativa experimental, sem release pronto para uso.** O início da primeira
+fase funciona, mas desempenho e compatibilidade da campanha ainda estão em
+validação. Abrir o jogo e testar algumas ações não certifica o jogo inteiro.
 
 A execução nativa já chegou ao menu 3D, à criação/reabertura de save e à
 primeira fase **Training Time**, incluindo a cena 3D e os diálogos. Uma correção
 no registro RSX `WINDOW_OFFSET` recuperou a imagem que o pós-processamento
-estava apagando. Os vídeos continuam desativados somente para diagnóstico;
+estava apagando. Os seis logos de abertura em PAM continuam omitidos;
 já foram observados movimento, transformação em Four Arms, ataques e saída
-de áudio pelo PulseAudio. Desempenho e entrega instalável ainda estão pendentes.
+de áudio pelo PulseAudio. A navegação por teclado foi exercitada pelo caminho
+de eventos SDL. O launcher local já inicia o executável preparado, mas ainda
+não substitui a preparação e tradução inicial do disco.
 Também foram traduzidos onze módulos PPU, 24 programas SPU de mídia e oito
 variantes OVIS do firmware do próprio disco. Veja
 [docs/VALIDATION.md](docs/VALIDATION.md).
+
+## Abrir no computador já preparado
+
+```bash
+scripts/install-launcher.sh
+```
+
+Abra **Ben 10 Omniverse PC (Experimental)** no menu de aplicativos. O launcher
+oferece tela cheia, dois perfis, recompilação dos arquivos já traduzidos e
+diagnóstico. Requer Python 3 com Tk, Docker para recompilar, sessão systemd,
+X11/Xwayland, PulseAudio/PipeWire e driver Vulkan. No Fedora, o módulo Tk faz
+parte de `python3-tkinter`.
+
+O perfil equilibrado usa dois workers SPU; o de compatibilidade usa um.
+Os saves desse launcher ficam em `~/.local/share/Ben10OmniversePC/user`,
+separados dos testes. Fechar a janela encerra o processo do jogo. Espere a
+gravação do save terminar antes de fechá-lo.
+
+Controles: WASD move, Z/Espaço pula e confirma, C/V atacam, setas selecionam
+alienígenas, Q retorna à forma humana, F combina com ataques especiais e
+Enter inicia/pausa. IJKL controla o analógico direito. O backend também oferece
+controles via SDL; não foi testado um controle físico nesta validação.
+
+Após o build, as bibliotecas ausentes e o SDL2 usado na compilação são copiados
+da própria imagem de ferramentas para `artifacts/native-libs`. Nenhuma biblioteca
+do sistema é substituída. `artifacts/host-libraries.json` registra origem e hashes.
+Para repetir somente essa etapa: `python3 tools/prepare_host_libraries.py`.
 
 ## Preparação local
 

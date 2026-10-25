@@ -39,10 +39,11 @@ if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package(PkgConfig REQUIRED)
     pkg_check_modules(BEN10_SDL2 REQUIRED IMPORTED_TARGET sdl2)
     add_executable(test_ben10_pad_file tests/test_pad_file.c
+        host/keyboard_state.cpp
         "${PS3RECOMP_DIR}/libs/input/cellPad.c"
         "${PS3RECOMP_DIR}/runtime/platform/win32_compat.c")
     target_include_directories(test_ben10_pad_file PRIVATE "${PS3RECOMP_DIR}/include"
-        "${PS3RECOMP_DIR}/libs/input" "${PS3RECOMP_DIR}/runtime/ppu")
+        "${PS3RECOMP_DIR}/libs/input" "${PS3RECOMP_DIR}/runtime/ppu" host)
     target_compile_options(test_ben10_pad_file PRIVATE -O1 -UNDEBUG -ffunction-sections -fdata-sections)
     target_link_options(test_ben10_pad_file PRIVATE -Wl,--gc-sections)
     target_link_libraries(test_ben10_pad_file PRIVATE PkgConfig::BEN10_SDL2 pthread m)
@@ -126,6 +127,7 @@ if(BEN10_BUILD_GAME)
     add_executable(Ben10OmniverseRecomp
         "${CMAKE_CURRENT_SOURCE_DIR}/host/boot_linux.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/host/job_pool.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/host/keyboard_state.cpp"
         "${PS3RECOMP_DIR}/runtime/ppu/ppu_loader.cpp"
         "${PS3RECOMP_DIR}/runtime/ppu/ppu_hle.cpp"
         "${PS3RECOMP_DIR}/runtime/ppu/ppu_fs.cpp"

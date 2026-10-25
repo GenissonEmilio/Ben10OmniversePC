@@ -30,5 +30,15 @@ docker run --rm --cpus=2 --memory=4g --memory-swap=4g --network=none \
                 -Ithird_party/ps3recomp/runtime/spu tests/test_spu_rotate.c -lm \
                 -o build/validation/test_ben10_spu_rotate
             build/validation/test_ben10_spu_rotate
+            "$CC" -O3 -mavx2 -ffp-contract=off -UNDEBUG \
+                -Ithird_party/ps3recomp/include \
+                -Ithird_party/ps3recomp/runtime/spu tests/test_spu_shuffle_selectors.c -lm \
+                -o build/validation/test_ben10_spu_shuffle_selectors
+            build/validation/test_ben10_spu_shuffle_selectors
+            "$CC" -O3 -mavx2 -ffp-contract=off -UNDEBUG \
+                -Ithird_party/ps3recomp/include \
+                -Ithird_party/ps3recomp/runtime/spu tests/test_spu_integer_float.c -lm \
+                -o build/validation/test_ben10_spu_integer_float
+            build/validation/test_ben10_spu_integer_float
         fi
     '

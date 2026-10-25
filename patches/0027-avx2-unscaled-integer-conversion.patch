@@ -1,0 +1,28 @@
+--- a/runtime/spu/spu_helpers.h
++++ b/runtime/spu/spu_helpers.h
+@@ -997,8 +997,24 @@
+ }
+ static inline u128 spu_cflts(u128 a, int i8) { u128 r; for (int i = 0; i < 4; i++) r._u32[i] = spu__cfl_lane(a._u32[i], 173 - (i8 & 0xFF), 0); return r; }
+ static inline u128 spu_cfltu(u128 a, int i8) { u128 r; for (int i = 0; i < 4; i++) r._u32[i] = spu__cfl_lane(a._u32[i], 173 - (i8 & 0xFF), 1); return r; }
+-static inline u128 spu_csflt(u128 a, int i8) { u128 r; for (int i = 0; i < 4; i++) { const int32_t v = a._s32[i];
++static inline u128 spu_csflt_ref(u128 a, int i8) { u128 r; for (int i = 0; i < 4; i++) { const int32_t v = a._s32[i];
+     r._u32[i] = v ? spu__sf_pack(v < 0 ? 0x80000000u : 0, v < 0 ? 0u - (uint32_t)v : (uint32_t)v, -(155 - (i8 & 0xFF))) : 0; } return r; }
++#if defined(__AVX2__) && !defined(SPU_SCALAR_HELPERS)
++static inline u128 spu_csflt(u128 a, int i8) {
++    if ((i8 & 255) == 155) {
++        /* Every int32 is exact in double. Clear the low 29 significand bits
++         * before narrowing: the result is exact, independent of MXCSR rounding.
++         * Integer zero is +0; all other results are normal, including INT_MIN. */
++        const __m256d exact = _mm256_cvtepi32_pd(spu__x8_ld(a));
++        const __m256d truncated = _mm256_castsi256_pd(_mm256_and_si256(
++            _mm256_castpd_si256(exact), _mm256_set1_epi64x(~0x1fffffffLL)));
++        return spu__x8_st(_mm_castps_si128(_mm256_cvtpd_ps(truncated)));
++    }
++    return spu_csflt_ref(a, i8);
++}
++#else
++static inline u128 spu_csflt(u128 a, int i8) { return spu_csflt_ref(a, i8); }
++#endif
+ static inline u128 spu_cuflt(u128 a, int i8) { u128 r; for (int i = 0; i < 4; i++) { const uint32_t v = a._u32[i];
+     r._u32[i] = v ? spu__sf_pack(0, v, -(155 - (i8 & 0xFF))) : 0; } return r; }
+ 

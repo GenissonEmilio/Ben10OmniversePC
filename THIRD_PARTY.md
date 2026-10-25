@@ -26,6 +26,12 @@
 - RPCS3: ferramenta externa usada nos modos `--decrypt` e `--installfw` para
   preparar o ELF e extrair o firmware do disco local. Não executa o jogo neste projeto. O download local fica
   em `artifacts/`, fora do Git. Não é redistribuído como runtime do port.
+- Dependências Linux: SDL2, SPIRV-Cross e bibliotecas FFmpeg do ambiente Ubuntu
+  descrito em `docker/Dockerfile`. `tools/prepare_host_libraries.py` copia as
+  dependências necessárias para uso local a partir dessa imagem e registra
+  SHA-256 e origem. Essa pasta não integra o Git nem um release.
+- `tools/desktop/main.py`, o ícone SVG e os auxiliares de teclado são código e
+  arte vetorial novos do projeto, sem imagens ou fontes extraídas do jogo.
 
 Arquivos do jogo, firmware, chaves, C/C++ traduzido do jogo e o executável
 resultante ficam apenas no computador do usuário e não integram o repositório.

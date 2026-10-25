@@ -1,6 +1,8 @@
 /* Real cellPadGetData reports in BE guest memory, with no desktop focus. */
 #include "cellPad.h"
 #include "ppu_memory.h"
+#include "keyboard_state.h"
+#include <SDL2/SDL_scancode.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,6 +42,15 @@ int main(void)
     poll();assert(word(CELL_PAD_BTN_OFFSET_DIGITAL2)==0);assert(word(CELL_PAD_BTN_OFFSET_ANALOG_LEFT_X)==128);
     command("0x4000 3 256 0 128 128\n");poll();assert(word(CELL_PAD_BTN_OFFSET_DIGITAL2)==0);
     command("0x4000 3 128 0\n");poll();assert(word(CELL_PAD_BTN_OFFSET_DIGITAL2)==0);
+    command("");unsetenv("PAD_NO_KEYBOARD");
+    ben10_keyboard_focus(1);
+    ben10_keyboard_event(SDL_SCANCODE_W,1);ben10_keyboard_event(SDL_SCANCODE_C,1);
+    usleep(20000);poll();
+    assert(word(CELL_PAD_BTN_OFFSET_ANALOG_LEFT_Y)==0);
+    assert(word(CELL_PAD_BTN_OFFSET_DIGITAL2)==0x80);
+    ben10_keyboard_focus(0);usleep(20000);poll();
+    assert(word(CELL_PAD_BTN_OFFSET_ANALOG_LEFT_Y)==128);
+    assert(word(CELL_PAD_BTN_OFFSET_DIGITAL2)==0);
     assert(cellPadEnd()==0);unlink(path);free(vm_base);
     puts("PASS PAD_FILE: analog, digital, combined, hold, release, malformed input");
 }

@@ -11,12 +11,13 @@ BLUS31017 01.00, importado localmente. Nenhum dado do jogo está no Git.
   dois de construtores SPU identificados pelos metadados ELF, um da seleção de
   exports SRE, um de publicação de tarefas antes da espera, três de variantes
   OVIS e um de consumidores independentes de metadados/pixels de vídeo.
-- 26 testes CTest passaram: 17 do runtime público e nove regressões locais.
+- 31 testes CTest passaram, incluindo as regressões locais de janela RSX,
+  relatórios de controle e executor paralelo.
 - Os testes públicos de flips GCM, scheduler SPURS e tabelas de saltos passaram.
 - AVX2: oito milhões de casos de ponto flutuante e 200 mil casos de `shufb`
   coincidiram com a referência escalar. Não são medições de FPS do jogo.
-- Os 19 patches reaplicam em ordem à revisão fixa do SDK e reproduzem exatamente
-  os 16 arquivos do SDK alterados na validação local.
+- Os 27 patches reaplicam em ordem à revisão fixa do SDK e reproduzem exatamente
+  os 20 arquivos do SDK alterados na validação local.
 - 15.115 funções PPU do jogo, 22 imagens SPU residentes, quatro jobs brutos e
   21 variantes de plugins SPU foram traduzidos e vinculados localmente.
 - Também foram traduzidos onze módulos PPU de mídia do firmware 4.25 do próprio
@@ -33,9 +34,11 @@ BLUS31017 01.00, importado localmente. Nenhum dado do jogo está no Git.
 
 ## Limites do resultado
 
-A tela de título foi alcançada com `PS3_NO_SAIL=1`: esse modo diagnóstico
+A tela de título foi alcançada com `PS3_NO_SAIL=1`: esse modo
 reporta falha de criação do player e deixa o jogo seguir seu tratamento de
-erro. **Não demonstra reprodução de vídeos** e não é ativado automaticamente.
+erro. **Não demonstra reprodução de vídeos**. O launcher experimental usa
+essa opção explicitamente. Os seis arquivos PAM encontrados em `Movies` são
+logos de abertura; as cenas de história observadas na primeira fase são 3D.
 
 Com `BEN10_LLE_MEDIA=1`, o caminho normal agora passa da abertura do AVC,
 antes bloqueada por argumentos de pilha perdidos. A correção do
@@ -89,8 +92,12 @@ Foram observados movimento via analógico, transformação em Four Arms e ataque
 na arena. Os comandos passaram pela API cellPad, com capturas finais 3D em
 `artifacts/probe72-move.png`, `probe72-transform.png` e `probe72-combat.png`.
 Isso valida essas ações no começo da fase, sem certificar o jogo inteiro.
-A automação X11 do teclado não teve validação conclusiva de movimento;
-o foco da janela interferiu no primeiro ensaio.
+O ensaio posterior confirmou eventos de teclado pelo SDL e pela API cellPad:
+Enter abriu o menu, W selecionou Games e Espaço confirmou menus, dificuldade
+e slot de save. A simulação global XTest foi ignorada pelo Xwayland, inclusive
+na consulta ao mapa de teclas do próprio servidor. O teste usou eventos X11
+enviados diretamente à janela do processo. Não equivale a testar um controle
+físico; as ações de combate acima foram inicialmente validadas por PAD_FILE.
 
 O teste PulseAudio abriu o stream do próprio processo. Uma captura isolada desse
 stream, com roteamento temporário restaurado ao final, mediu 966.656 amostras,
@@ -110,6 +117,24 @@ barreiras por chain, dois produtores, fila limitada e fallback serial. A operaç
 SPU `rotqby` ganhou uma implementação SSSE3 comparada ao loop escalar em dois
 milhões de vetores. Os testes de cellPad verificam bytes BE, analógicos, botões,
 combinação, duração, retorno ao neutro e comandos malformados.
+
+A seleção de bytes SHUFB no x86 passou a mapear os seletores na ordem do host,
+com uma tabela para as constantes especiais. Foram comparados 8.192 casos
+exhaustivos de seletor/posição e dois milhões de vetores mistos à referência
+escalar, além dos 200 mil casos do SDK. A conversão CSFLT sem escala ganhou
+um caminho AVX2 que trunca explicitamente a mantissa. Foram comparados dois
+milhões de vetores, todos os fatores de escala e os quatro modos de arredondamento
+do host; zeros, INT_MIN e limites de precisão também são verificados. Os ganhos
+dos microbenchmarks não são uma medição do FPS do jogo.
+
+O launcher Tk foi exercitado com o executável real e dados de teste separados.
+Inicia o jogo em escopo systemd, limita recursos, mantém diagnóstico limitado
+a 700 linhas e encerra somente o próprio escopo. A janela foi conferida em
+1000×760, incluindo o aviso de prévia. O atalho foi instalado e passou em
+`desktop-file-validate`. A importação/tradução inicial ainda segue o procedimento
+do README: o launcher abre arquivos já preparados e não promete preparação
+automática de um disco novo. O script de bibliotecas copia dependências da
+imagem local do build, preserva as do sistema e registra SHA-256/origem.
 
 Os testes reais usam escopos systemd com limite de RAM de 4 GiB, sem swap,
 CPU limitada e timeout, separados das outras instalações. Os builds usam dois
@@ -149,14 +174,16 @@ teste desliga ou reinicia o computador.
   buffer de listagem fornecido pelo jogo. Teste grava e relê dados em disco.
 - `_sys_strchr` converte ponteiros e retorna endereços no espaço guest.
 - Teclado SDL: WASD, IJKL, setas, Z/Espaço, X, C, V, Q/E, R/F, Enter e Tab.
-  Mapeamento compilado; validação interativa de teclado/controle ainda pendente.
+  Snapshot atômico alimentado pelos eventos da thread de vídeo; perda de foco
+  libera as teclas. O teste usa relatórios BE reais e verifica foco, movimento,
+  ataque e retorno ao neutro. Controle físico ainda não foi testado.
 
 Os patches ficam em `patches/` e são aplicados apenas à revisão fixa do SDK.
 Código PPU/SPU gerado, firmware, dumps e binário permanecem fora do Git.
 O GitHub Actions valida somente a base sintética, sem dados do jogo.
 
-O commit `e306a79881b6ec2da255fec15ce02a8dadaa9e33` passou também na
-[validação do GitHub Actions](https://github.com/GenissonEmilio/Ben10OmniversePC/actions/runs/40173586652).
+O commit `6da46f8` passou também na
+[validação do GitHub Actions](https://github.com/GenissonEmilio/Ben10OmniversePC/actions/runs/40179172758).
 
 Referências de contratos e erros:
 [RPCS3 cellGcmSys](https://github.com/RPCS3/rpcs3/blob/master/rpcs3/Emu/Cell/Modules/cellGcmSys.cpp),

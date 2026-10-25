@@ -26,3 +26,4 @@ docker run --rm --cpus=2 --memory=4g --memory-swap=4g --network=none \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
         cmake --build build/native --target Ben10OmniverseRecomp --parallel 2
     '
+python3 "$root/tools/prepare_host_libraries.py"
