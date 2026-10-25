@@ -51,6 +51,10 @@ int main(void)
     ben10_keyboard_focus(0);usleep(20000);poll();
     assert(word(CELL_PAD_BTN_OFFSET_ANALOG_LEFT_Y)==128);
     assert(word(CELL_PAD_BTN_OFFSET_DIGITAL2)==0);
+    ben10_keyboard_focus(1);ben10_keyboard_event(SDL_SCANCODE_ESCAPE,1);
+    usleep(20000);poll();assert(word(CELL_PAD_BTN_OFFSET_DIGITAL1)==CELL_PAD_CTRL_START);
+    ben10_keyboard_event(SDL_SCANCODE_ESCAPE,0);
+    usleep(20000);poll();assert(word(CELL_PAD_BTN_OFFSET_DIGITAL1)==0);
     assert(cellPadEnd()==0);unlink(path);free(vm_base);
     puts("PASS PAD_FILE: analog, digital, combined, hold, release, malformed input");
 }

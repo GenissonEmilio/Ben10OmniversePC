@@ -16,7 +16,7 @@ BLUS31017 01.00, importado localmente. Nenhum dado do jogo está no Git.
 - Os testes públicos de flips GCM, scheduler SPURS e tabelas de saltos passaram.
 - AVX2: oito milhões de casos de ponto flutuante e 200 mil casos de `shufb`
   coincidiram com a referência escalar. Não são medições de FPS do jogo.
-- Os 27 patches reaplicam em ordem à revisão fixa do SDK e reproduzem exatamente
+- Os 28 patches reaplicam em ordem à revisão fixa do SDK e reproduzem exatamente
   os 20 arquivos do SDK alterados na validação local.
 - 15.115 funções PPU do jogo, 22 imagens SPU residentes, quatro jobs brutos e
   21 variantes de plugins SPU foram traduzidos e vinculados localmente.
@@ -99,6 +99,18 @@ na consulta ao mapa de teclas do próprio servidor. O teste usou eventos X11
 enviados diretamente à janela do processo. Não equivale a testar um controle
 físico; as ações de combate acima foram inicialmente validadas por PAD_FILE.
 
+Depois da recompilação com as operações x86 otimizadas, o launcher abriu a janela
+em tela cheia de 1920×1080, com renderização interna de 1280×720. O mesmo caminho
+de teclado SDL moveu Ben com W, acionou a transformação em Four Arms com a seta
+para cima, executou ataques com C e abriu a pausa com Enter. As capturas ficam
+em `artifacts/gui-final-keyboard-move2.png`, `gui-final-keyboard-transform2.png`,
+`gui-final-keyboard-attack2.png` e `gui-final-keyboard-pause.png`.
+Essa execução usou somente os eventos da janela, sem PAD_SCRIPT/PAD_FILE.
+O contador de flips observou cerca de 12–14/s na introdução e 8–12/s em parte
+do combate; continua insuficiente para considerar o port pronto. A comparação
+não isola cenas idênticas entre builds, portanto não atribui uma porcentagem
+de ganho no jogo às novas operações.
+
 O teste PulseAudio abriu o stream do próprio processo. Uma captura isolada desse
 stream, com roteamento temporário restaurado ao final, mediu 966.656 amostras,
 582.144 não nulas, pico 0,511 e RMS 0,114, sem valores não finitos. Não foi
@@ -176,14 +188,15 @@ teste desliga ou reinicia o computador.
 - Teclado SDL: WASD, IJKL, setas, Z/Espaço, X, C, V, Q/E, R/F, Enter e Tab.
   Snapshot atômico alimentado pelos eventos da thread de vídeo; perda de foco
   libera as teclas. O teste usa relatórios BE reais e verifica foco, movimento,
-  ataque e retorno ao neutro. Controle físico ainda não foi testado.
+  ataque e retorno ao neutro. Esc mapeia Start para pausar, em vez de encerrar
+  o processo. Controle físico ainda não foi testado.
 
 Os patches ficam em `patches/` e são aplicados apenas à revisão fixa do SDK.
 Código PPU/SPU gerado, firmware, dumps e binário permanecem fora do Git.
 O GitHub Actions valida somente a base sintética, sem dados do jogo.
 
-O commit `6da46f8` passou também na
-[validação do GitHub Actions](https://github.com/GenissonEmilio/Ben10OmniversePC/actions/runs/40179172758).
+O commit `4faabf5` passou também na
+[validação do GitHub Actions](https://github.com/GenissonEmilio/Ben10OmniversePC/actions/runs/40182818846).
 
 Referências de contratos e erros:
 [RPCS3 cellGcmSys](https://github.com/RPCS3/rpcs3/blob/master/rpcs3/Emu/Cell/Modules/cellGcmSys.cpp),

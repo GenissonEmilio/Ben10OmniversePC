@@ -71,7 +71,8 @@ class Launcher(tk.Tk):
         try: prefs=json.loads((DATA/'launcher.json').read_text())
         except (OSError,ValueError): prefs={}
         self.fullscreen=tk.BooleanVar(value=bool(prefs.get('fullscreen',False)))
-        self.profile=tk.StringVar(value=prefs.get('profile','Equilibrado · 2 workers'))
+        profile=prefs.get('profile','Equilibrado')
+        self.profile=tk.StringVar(value='Compatibilidade' if isinstance(profile,str) and profile.startswith('Compatibilidade') else 'Equilibrado')
         style=ttk.Style(self);style.theme_use('clam')
         style.configure('TCombobox',fieldbackground=PANEL,background=PANEL,foreground=TEXT,arrowcolor=GREEN,padding=9)
         style.map('TCombobox',fieldbackground=[('readonly',PANEL)],foreground=[('readonly',TEXT)])
@@ -103,12 +104,12 @@ class Launcher(tk.Tk):
         self.label(right,'Seu jeito de jogar',19,TEXT,True,PANEL).pack(anchor='w',pady=(0,15))
         tk.Checkbutton(right,text='Tela cheia',variable=self.fullscreen,bg=PANEL,fg=TEXT,selectcolor=BG,activebackground=PANEL,activeforeground=GREEN,font=('Sans',12),command=self.save_preferences).pack(anchor='w',pady=(0,15))
         self.label(right,'Desempenho',11,MUTED,bg=PANEL).pack(anchor='w')
-        combo=ttk.Combobox(right,textvariable=self.profile,state='readonly',values=['Equilibrado · 2 workers','Compatibilidade · 1 worker'],width=28)
+        combo=ttk.Combobox(right,textvariable=self.profile,state='readonly',values=['Equilibrado','Compatibilidade'],width=28)
         combo.pack(fill='x',pady=(6,22));combo.bind('<<ComboboxSelected>>',lambda _:self.save_preferences())
         self.label(right,'Teclado e controle',14,GREEN,True,PANEL).pack(anchor='w',pady=(0,10))
-        for text in ['WASD   Mover', 'Espaço / Z   Pular', 'C / V   Ataques leve / forte', 'Setas   Selecionar alienígena', 'Q   Voltar à forma humana', 'F + ataque   Ataque especial', 'Enter   Pausar']:
+        for text in ['WASD   Mover', 'Espaço / Z   Pular', 'C / V   Ataques leve / forte', 'Setas   Selecionar alienígena', 'Q   Voltar à forma humana', 'F + ataque   Ataque especial', 'Enter / Esc   Pausar']:
             self.label(right,text,11,TEXT,bg=PANEL).pack(anchor='w',pady=3)
-        self.label(right,'Controle USB/Bluetooth via SDL.\nA janela do jogo precisa estar em foco.',10,MUTED,bg=PANEL).pack(anchor='w',pady=(15,0))
+        self.label(right,'Controle USB/Bluetooth compatível.\nA janela do jogo precisa estar em foco.',10,MUTED,bg=PANEL).pack(anchor='w',pady=(15,0))
         footer=tk.Frame(self,bg=BG);footer.pack(fill='x',padx=34,pady=20)
         self.label(footer,'Logos de abertura omitidos. Desempenho e compatibilidade da campanha ainda em validação.',10,MUTED).pack(anchor='w')
         self.after(150,self.poll);self.after(200,self.refresh);self.protocol('WM_DELETE_WINDOW',self.close)

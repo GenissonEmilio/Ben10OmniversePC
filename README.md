@@ -40,7 +40,7 @@ gravação do save terminar antes de fechá-lo.
 
 Controles: WASD move, Z/Espaço pula e confirma, C/V atacam, setas selecionam
 alienígenas, Q retorna à forma humana, F combina com ataques especiais e
-Enter inicia/pausa. IJKL controla o analógico direito. O backend também oferece
+Enter inicia/pausa; Esc também pausa. IJKL controla o analógico direito. O backend também oferece
 controles via SDL; não foi testado um controle físico nesta validação.
 
 Após o build, as bibliotecas ausentes e o SDL2 usado na compilação são copiados

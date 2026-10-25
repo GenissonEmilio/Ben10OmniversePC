@@ -1,0 +1,20 @@
+--- a/libs/input/cellPad.c
++++ b/libs/input/cellPad.c
+@@ -360,6 +360,7 @@
+         {SDL_SCANCODE_V, CELL_PAD_CTRL_TRIANGLE}, {SDL_SCANCODE_Q, CELL_PAD_CTRL_L1},
+         {SDL_SCANCODE_E, CELL_PAD_CTRL_R1}, {SDL_SCANCODE_R, CELL_PAD_CTRL_L2},
+         {SDL_SCANCODE_F, CELL_PAD_CTRL_R2}, {SDL_SCANCODE_RETURN, CELL_PAD_CTRL_START},
++        {SDL_SCANCODE_ESCAPE, CELL_PAD_CTRL_START},
+         {SDL_SCANCODE_TAB, CELL_PAD_CTRL_SELECT},
+     };
+     for (unsigned i = 0; i < sizeof map / sizeof map[0]; ++i)
+--- a/libs/video/rsx_vulkan_backend.c
++++ b/libs/video/rsx_vulkan_backend.c
+@@ -3716,7 +3716,6 @@
+             if (e.window.event == SDL_WINDOWEVENT_FOCUS_LOST) ben10_keyboard_focus(0);
+         }
+         if (e.type == SDL_QUIT) quit = 1;
+-        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) quit = 1;
+     }
+     return quit ? -1 : 0;
+ }
