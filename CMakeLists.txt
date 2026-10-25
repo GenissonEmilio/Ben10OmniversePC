@@ -17,6 +17,14 @@ include(CTest)
 add_subdirectory("${PS3RECOMP_DIR}" ps3recomp)
 
 if(BUILD_TESTING AND UNIX)
+    add_executable(test_ben10_job_pool tests/test_job_pool.cpp host/job_pool.cpp)
+    target_include_directories(test_ben10_job_pool PRIVATE host)
+    target_compile_options(test_ben10_job_pool PRIVATE -O1 -UNDEBUG)
+    target_link_libraries(test_ben10_job_pool PRIVATE pthread)
+    add_test(NAME ben10_job_pool COMMAND test_ben10_job_pool)
+    add_test(NAME ben10_job_pool_disabled COMMAND test_ben10_job_pool disabled)
+    add_test(NAME ben10_job_pool_four COMMAND test_ben10_job_pool four)
+    set_tests_properties(ben10_job_pool ben10_job_pool_disabled ben10_job_pool_four PROPERTIES TIMEOUT 8)
     add_executable(test_ben10_window_offset tests/test_rsx_window_offset.c
         "${PS3RECOMP_DIR}/libs/video/rsx_dispatch.c")
     target_include_directories(test_ben10_window_offset PRIVATE "${PS3RECOMP_DIR}/include"
@@ -28,6 +36,18 @@ if(BUILD_TESTING AND UNIX)
     add_test(NAME ben10_flat_vm COMMAND test_ben10_flat_vm)
 endif()
 if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(BEN10_SDL2 REQUIRED IMPORTED_TARGET sdl2)
+    add_executable(test_ben10_pad_file tests/test_pad_file.c
+        "${PS3RECOMP_DIR}/libs/input/cellPad.c"
+        "${PS3RECOMP_DIR}/runtime/platform/win32_compat.c")
+    target_include_directories(test_ben10_pad_file PRIVATE "${PS3RECOMP_DIR}/include"
+        "${PS3RECOMP_DIR}/libs/input" "${PS3RECOMP_DIR}/runtime/ppu")
+    target_compile_options(test_ben10_pad_file PRIVATE -O1 -UNDEBUG -ffunction-sections -fdata-sections)
+    target_link_options(test_ben10_pad_file PRIVATE -Wl,--gc-sections)
+    target_link_libraries(test_ben10_pad_file PRIVATE PkgConfig::BEN10_SDL2 pthread m)
+    add_test(NAME ben10_pad_file COMMAND test_ben10_pad_file)
+    set_tests_properties(ben10_pad_file PROPERTIES TIMEOUT 8)
     add_executable(test_ben10_taskset_argument tests/test_taskset_argument.c
         "${PS3RECOMP_DIR}/libs/spurs/spurs_taskset.c")
     target_include_directories(test_ben10_taskset_argument PRIVATE "${PS3RECOMP_DIR}/include"
@@ -105,6 +125,7 @@ if(BEN10_BUILD_GAME)
         VERBATIM)
     add_executable(Ben10OmniverseRecomp
         "${CMAKE_CURRENT_SOURCE_DIR}/host/boot_linux.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/host/job_pool.cpp"
         "${PS3RECOMP_DIR}/runtime/ppu/ppu_loader.cpp"
         "${PS3RECOMP_DIR}/runtime/ppu/ppu_hle.cpp"
         "${PS3RECOMP_DIR}/runtime/ppu/ppu_fs.cpp"

@@ -1,0 +1,77 @@
+--- a/libs/input/cellPad.c
++++ b/libs/input/cellPad.c
+@@ -337,12 +337,11 @@
+  * focus releases every button; a physical controller retains priority. */
+ static void pad_poll_sdl_keyboard(void)
+ {
+-    if (getenv("PAD_NO_KEYBOARD")) return;
+     PadHostState* hs = &s_host_state[0];
+     memset(hs, 0, sizeof *hs);
+     hs->connected = 1;
+     hs->analog_lx = hs->analog_ly = hs->analog_rx = hs->analog_ry = 128;
+-    if (!SDL_GetKeyboardFocus()) return;
++    if (getenv("PAD_NO_KEYBOARD") || !SDL_GetKeyboardFocus()) return;
+     const Uint8* keys = SDL_GetKeyboardState(NULL);
+     const struct { SDL_Scancode key; u16 button; } map[] = {
+         {SDL_SCANCODE_UP, CELL_PAD_CTRL_UP}, {SDL_SCANCODE_DOWN, CELL_PAD_CTRL_DOWN},
+@@ -767,8 +766,12 @@
+      *   echo 0x0040 4 > pad.txt  # DOWN for 4 polls (menus auto-repeat a
+      *                            # long hold; the default is 40)
+      */
++    int file_axes_active = 0;
++    u8 file_axes[4] = {128,128,128,128};
+     { static int s_pf = -1; static char pf_path[512];
+       static unsigned held_mask = 0; static int held_n = 0;
++      static int held_has_axes = 0;
++      static u8 held_axes[4] = {128,128,128,128};
+       if (s_pf < 0) { const char* e = getenv("PAD_FILE");
+                       s_pf = (e && *e) ? 1 : 0;
+                       if (s_pf) { strncpy(pf_path, e, sizeof pf_path - 1); pf_path[sizeof pf_path - 1] = 0; } }
+@@ -781,14 +784,30 @@
+                       char* rest;
+                       unsigned m = (unsigned)strtoul(buf, &rest, 0);
+                       int n = (int)strtol(rest, 0, 0);
+-                      if (m) { held_mask = m; held_n = n > 0 ? n : 40;
+-                               printf("[cellPad] PAD_FILE press 0x%04X\n", m); fflush(stdout); }
++                      /* Optional four byte axes after the poll count allow
++                       * closed-loop stick tests without desktop focus. */
++                      char* axes_start = rest;
++                      (void)strtol(rest, &axes_start, 0);
++                      int ax=128,ay=128,bx=128,by=128; char extra;
++                      int fields = sscanf(axes_start, "%d %d %d %d %c", &ax,&ay,&bx,&by,&extra);
++                      int axes_ok = fields == 4 && ax>=0 && ax<=255 && ay>=0 && ay<=255
++                                                   && bx>=0 && bx<=255 && by>=0 && by<=255;
++                      if ((fields == EOF || axes_ok) && (m || axes_ok)) {
++                          held_mask = m; held_n = n > 0 ? n : 40;
++                          held_has_axes = axes_ok;
++                          held_axes[0]=(u8)ax; held_axes[1]=(u8)ay;
++                          held_axes[2]=(u8)bx; held_axes[3]=(u8)by;
++                          printf("[cellPad] PAD_FILE press 0x%04X axes=%d %u,%u %u,%u\n",
++                                 m, axes_ok, held_axes[0],held_axes[1],held_axes[2],held_axes[3]);
++                          fflush(stdout);
++                      }
+                   }
+                   fclose(f);
+                   if (held_n > 0) { FILE* w = fopen(pf_path, "wb"); if (w) fclose(w); }
+               }
+           }
+           if (held_n > 0) { held_n--;
++              if (held_has_axes) { file_axes_active=1; memcpy(file_axes,held_axes,4); }
+               data->button[CELL_PAD_BTN_OFFSET_DIGITAL1] |= (u16)(held_mask & 0xFF);
+               data->button[CELL_PAD_BTN_OFFSET_DIGITAL2] |= (u16)((held_mask >> 8) & 0xFF); }
+       } }
+@@ -841,10 +860,10 @@
+                 fprintf(stderr, "[PADSWEEP] step %d: l=(%u,%u) r=(%u,%u)%c", k,
+                         steps[k][0], steps[k][1], steps[k][2], steps[k][3], 10); } }
+         } } }
+-    data->button[CELL_PAD_BTN_OFFSET_ANALOG_RIGHT_X] = hs->analog_rx;
+-    data->button[CELL_PAD_BTN_OFFSET_ANALOG_RIGHT_Y] = hs->analog_ry;
+-    data->button[CELL_PAD_BTN_OFFSET_ANALOG_LEFT_X]  = hs->analog_lx;
+-    data->button[CELL_PAD_BTN_OFFSET_ANALOG_LEFT_Y]  = hs->analog_ly;
++    data->button[CELL_PAD_BTN_OFFSET_ANALOG_RIGHT_X] = file_axes_active ? file_axes[2] : hs->analog_rx;
++    data->button[CELL_PAD_BTN_OFFSET_ANALOG_RIGHT_Y] = file_axes_active ? file_axes[3] : hs->analog_ry;
++    data->button[CELL_PAD_BTN_OFFSET_ANALOG_LEFT_X]  = file_axes_active ? file_axes[0] : hs->analog_lx;
++    data->button[CELL_PAD_BTN_OFFSET_ANALOG_LEFT_Y]  = file_axes_active ? file_axes[1] : hs->analog_ly;
+ 
+     /* Pressure-sensitive buttons (only meaningful if PRESS_ON) */
+     if (setting & CELL_PAD_SETTING_PRESS_ON) {

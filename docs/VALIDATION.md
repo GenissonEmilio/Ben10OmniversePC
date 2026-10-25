@@ -85,10 +85,31 @@ somente em `artifacts/rsx69/` e `artifacts/probe69-present.ppm`, fora do Git.
 O teste sintético cobre atlas, quatro pitches MRT, profundidade, AA, formatos,
 reset e decodificação repetida. A suíte neutra do draw engine também passou.
 
-Ainda não foram validados movimento/combate sob controle do jogador, saída de
-áudio real e desempenho suficiente para uma entrega jogável. Os testes usam o
-driver de áudio `dummy`. A amostra da introdução da fase ficou perto de 6 flips
-por segundo, sob cota de CPU de 300%; isso não certifica FPS de gameplay.
+Foram observados movimento via analógico, transformação em Four Arms e ataques
+na arena. Os comandos passaram pela API cellPad, com capturas finais 3D em
+`artifacts/probe72-move.png`, `probe72-transform.png` e `probe72-combat.png`.
+Isso valida essas ações no começo da fase, sem certificar o jogo inteiro.
+A automação X11 do teclado não teve validação conclusiva de movimento;
+o foco da janela interferiu no primeiro ensaio.
+
+O teste PulseAudio abriu o stream do próprio processo. Uma captura isolada desse
+stream, com roteamento temporário restaurado ao final, mediu 966.656 amostras,
+582.144 não nulas, pico 0,511 e RMS 0,114, sem valores não finitos. Não foi
+capturado áudio de outros aplicativos. Isso verifica saída real do backend,
+sem afirmar avaliação auditiva de todas as falas/efeitos.
+
+O novo executor Linux opcional distribui os jobs entre workers com IDs SPU
+exclusivos. Ele conserva callbacks e notificações reais e drena a fila antes de
+barreiras, comandos de controle e cancelamento. O padrão permanece serial.
+Dois workers produziram cerca de 12 flips/s na introdução, ante 6–7 no caminho
+serial; no combate a taxa também varia com a cena. Ainda falta desempenho
+suficiente e validação ampliada para uma entrega pronta.
+
+Os testes sintéticos do executor cobrem concorrência, completamento único,
+barreiras por chain, dois produtores, fila limitada e fallback serial. A operação
+SPU `rotqby` ganhou uma implementação SSSE3 comparada ao loop escalar em dois
+milhões de vetores. Os testes de cellPad verificam bytes BE, analógicos, botões,
+combinação, duração, retorno ao neutro e comandos malformados.
 
 Os testes reais usam escopos systemd com limite de RAM de 4 GiB, sem swap,
 CPU limitada e timeout, separados das outras instalações. Os builds usam dois

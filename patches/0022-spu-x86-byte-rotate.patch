@@ -1,0 +1,25 @@
+diff --git a/runtime/spu/spu_helpers.h b/runtime/spu/spu_helpers.h
+index 3f7d733..45b31a0 100644
+--- a/runtime/spu/spu_helpers.h
++++ b/runtime/spu/spu_helpers.h
+@@ -1187,6 +1187,20 @@ static inline u128 spu_rotqby_ref(u128 a, u128 b){ int sh=b._u32[0]&0x0F; u128 r
+ static inline u128 spu_rotqby(u128 a, u128 b) {
+     return spu__perm(a, vandq_u8(vaddq_u8(spu__iota(), vdupq_n_u8((uint8_t)b._u32[0])), vdupq_n_u8(15)));
+ }
++#elif defined(__SSSE3__) && !defined(SPU_SCALAR_HELPERS) && !defined(SPU_SCALAR_INT)
++#include <tmmintrin.h>
++static inline u128 spu_rotqby(u128 a, u128 b) {
++    /* Convert host byte positions to SPU order, rotate there, then map the
++     * selectors back. PSHUFB ignores selector bit 4; addition is at most 30,
++     * so its zeroing bit is never set. No floating-point approximation. */
++    const __m128i order = _mm_setr_epi8(3,2,1,0,7,6,5,4,11,10,9,8,15,14,13,12);
++    const __m128i index = _mm_xor_si128(
++        _mm_add_epi8(order, _mm_set1_epi8((char)(b._u32[0] & 15u))),
++        _mm_set1_epi8(3));
++    __m128i input; memcpy(&input, &a, 16);
++    const __m128i result = _mm_shuffle_epi8(input, index);
++    u128 out; memcpy(&out, &result, 16); return out;
++}
+ #else
+ static inline u128 spu_rotqby(u128 a, u128 b) { return spu_rotqby_ref(a, b); }
+ #endif

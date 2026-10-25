@@ -13,7 +13,8 @@ A execução nativa já chegou ao menu 3D, à criação/reabertura de save e à
 primeira fase **Training Time**, incluindo a cena 3D e os diálogos. Uma correção
 no registro RSX `WINDOW_OFFSET` recuperou a imagem que o pós-processamento
 estava apagando. Os vídeos continuam desativados somente para diagnóstico;
-ainda faltam validação de combate, áudio real, desempenho e entrega instalável.
+já foram observados movimento, transformação em Four Arms, ataques e saída
+de áudio pelo PulseAudio. Desempenho e entrega instalável ainda estão pendentes.
 Também foram traduzidos onze módulos PPU, 24 programas SPU de mídia e oito
 variantes OVIS do firmware do próprio disco. Veja
 [docs/VALIDATION.md](docs/VALIDATION.md).
@@ -122,3 +123,11 @@ estiver faltando, incluindo integração de jobs SPU, mídia e callbacks.
 O projeto GodOfWar2PC de origem permanece intacto. Nenhum arquivo do jogo ou
 arte original do Ben 10 é distribuído aqui. O código novo do projeto usa
 GPL-3.0, com componentes MIT identificados separadamente.
+
+O executor Linux aceita `PS3_JOB_WORKERS=2` para executar jobs independentes
+em paralelo. A fila tem limite, IDs SPU distintos e espera pelas conclusões reais
+antes de comandos de controle e barreiras. O padrão continua serial enquanto
+ampliamos a validação. No teste da introdução de Training Time, dois workers
+atingiram aproximadamente 12 flips/s, contra 6–7 no caminho serial; essa amostra
+não é uma certificação de desempenho do jogo inteiro. `PS3_JOB_WORKERS=1`
+seleciona explicitamente o comportamento serial.

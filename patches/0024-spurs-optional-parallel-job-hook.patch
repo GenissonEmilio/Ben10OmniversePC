@@ -1,0 +1,52 @@
+--- a/libs/spurs/cellSpurs.c
++++ b/libs/spurs/cellSpurs.c
+@@ -2671,6 +2671,14 @@
+ 
+ static void jc_execute(u32 entry_ea, u32 jc_ea, u32 size_desc, volatile LONG* running)
+ {
++#ifndef _WIN32
++    /* Optional Linux host executor. No hook means the proven serial path;
++     * all control commands and cancellation drain actual job completions. */
++    extern int ps3_host_job_submit(u32,u32,int,u32,
++        void (*)(u32,int,u32),void (*)(u32,int),void (*)(u32)) __attribute__((weak));
++    extern void ps3_host_job_drain(u32) __attribute__((weak));
++    extern void spurs_job_set_spu_num(u32) __attribute__((weak));
++#endif
+     u32 pc = entry_ea, ret_pc = 0;
+     int jobs = 0;
+     /* Bound IDLE steps, not total steps. A SPURS job chain is frequently a
+@@ -2682,11 +2690,19 @@
+      * count that instead and reset it whenever real work happens. */
+     int idle = 0;
+     for (;; idle++) {
+-        if (!_InterlockedCompareExchange(running, 1, 1)) return;
++        if (!_InterlockedCompareExchange(running, 1, 1)) {
++#ifndef _WIN32
++            if (ps3_host_job_drain) ps3_host_job_drain(jc_ea);
++#endif
++            return;
++        }
+         if (idle > 4096) break;
+         u64 cmd = vm_read64(pc);
+         u32 op  = (u32)(cmd & 7);
+         u32 ext = (u32)(cmd & 127);
++#ifndef _WIN32
++        if ((op != 0 || !cmd) && ps3_host_job_drain) ps3_host_job_drain(jc_ea);
++#endif
+ 
+         /* Ben 10 pre-fills its producer ring with JTS (jump-to-self). The PPU
+          * replaces the current slot when it publishes work. This is a parked
+@@ -2700,6 +2716,13 @@
+         if (cmd != 0 && op == 0) {                    /* JOB */
+             { extern u32 g_spurs_job_ls_handle; g_spurs_job_ls_handle = jc_ea; }
+             int idx = jobs++;
++#ifndef _WIN32
++            if (ps3_host_job_submit && spurs_job_set_spu_num &&
++                ps3_host_job_submit(jc_ea,(u32)(cmd & ~7ull),idx,size_desc,
++                                   jc_run_one_job,jc_signal_done,spurs_job_set_spu_num)) {
++                pc += 8; continue;
++            }
++#endif
+             jc_run_one_job((u32)(cmd & ~7ull), idx, size_desc);
+             idle = 0;                    /* real work: the chain is healthy */
+             /* Signal per JOB, not per lap. The application waits once for each

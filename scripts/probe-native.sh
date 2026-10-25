@@ -5,15 +5,17 @@ root=$(cd -- "$(dirname -- "$0")/.." && pwd)
 data=${BEN10_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/Ben10OmniversePC}
 seconds=${1:-30}
 quota=${BEN10_PROBE_CPU_QUOTA:-200%}
-[[ "$seconds" =~ ^[0-9]+$ ]] && (( seconds > 0 && seconds <= 300 )) || exit 2
+audio=${BEN10_PROBE_AUDIO_DRIVER:-dummy}
+[[ "$seconds" =~ ^[0-9]+$ ]] && (( seconds > 0 && seconds <= 600 )) || exit 2
 [[ "$quota" == 200% || "$quota" == 300% || "$quota" == 400% ]] || exit 2
+case "$audio" in dummy|pulseaudio|pipewire|alsa) ;; *) exit 2 ;; esac
 ulimit -c 0
 exec systemd-run --user --scope --unit="ben10-native-probe-$$" \
     --property="CPUQuota=$quota" --property=MemoryMax=4G --property=MemorySwapMax=0 \
     timeout --signal=TERM --kill-after=3s "${seconds}s" env \
     LD_LIBRARY_PATH="$root/artifacts/native-libs${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
     __NV_PRIME_RENDER_OFFLOAD=1 __VK_LAYER_NV_optimus=NVIDIA_only \
-    SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER=dummy \
+    SDL_VIDEODRIVER=x11 SDL_AUDIODRIVER="$audio" \
     PS3_TITLE='Ben 10 Omniverse — Native Linux' \
     PS3_VFS_ROOT="$data/game" \
     PS3_HDD0_ROOT="$data/probe-user/hdd0" PS3_HDD1_ROOT="$data/probe-user/cache" \

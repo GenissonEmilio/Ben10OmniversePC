@@ -26,5 +26,9 @@ docker run --rm --cpus=2 --memory=4g --memory-swap=4g --network=none \
                 third_party/ps3recomp/runtime/spu/tests/test_spu_shufb.c -lm \
                 -o build/validation/test_spu_shufb_avx2
             build/validation/test_spu_shufb_avx2
+            "$CC" -O3 -mssse3 -UNDEBUG -Ithird_party/ps3recomp/include \
+                -Ithird_party/ps3recomp/runtime/spu tests/test_spu_rotate.c -lm \
+                -o build/validation/test_ben10_spu_rotate
+            build/validation/test_ben10_spu_rotate
         fi
     '
