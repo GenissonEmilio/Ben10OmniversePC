@@ -69,9 +69,17 @@ Uma regressão percorre 40 frames fabricados, incluindo reutilização da fila,
 compara pixels e PTS e exige EMPTY após consumir todos os metadados disponíveis.
 Essas correções ainda não demonstram reprodução visível nem gameplay.
 
-O teste sem player avançou de “Checking content” para “Loading content”, mas
-terminou com tela vazia. Não foram validados menu principal, carregamento de
-fase, combate ou performance de gameplay. A taxa de flips de uma tela de título
+Uma captura posterior, sem player, acompanhou 12 passes do renderer. As imagens
+intermediárias contêm o cenário, os personagens e a interface do menu 3D;
+o frame apresentado termina com a camada “Loading content” cobrindo a cena.
+Isso distingue geometria/texturas já produzidas de uma inicialização que
+não teria renderizado a cena. Os comandos Start/Cross foram consumidos, mas
+não foi observada liberação do carregamento ou entrada numa fase. A captura
+local está em `artifacts/rsx60/`, incluindo `passes.txt` e `present009.ppm`;
+esses arquivos contêm imagens do jogo e permanecem fora do Git.
+
+Não foram validados navegação completa do menu, carregamento de fase, combate
+ou performance de gameplay. A taxa de flips de uma tela de título
 não é uma medição de FPS do jogo. Os testes usam o driver de áudio `dummy`;
 a saída de áudio real também permanece sem validação.
 
@@ -117,6 +125,9 @@ teste desliga ou reinicia o computador.
 Os patches ficam em `patches/` e são aplicados apenas à revisão fixa do SDK.
 Código PPU/SPU gerado, firmware, dumps e binário permanecem fora do Git.
 O GitHub Actions valida somente a base sintética, sem dados do jogo.
+
+O commit `e306a79881b6ec2da255fec15ce02a8dadaa9e33` passou também na
+[validação do GitHub Actions](https://github.com/GenissonEmilio/Ben10OmniversePC/actions/runs/40173586652).
 
 Referências de contratos e erros:
 [RPCS3 cellGcmSys](https://github.com/RPCS3/rpcs3/blob/master/rpcs3/Emu/Cell/Modules/cellGcmSys.cpp),

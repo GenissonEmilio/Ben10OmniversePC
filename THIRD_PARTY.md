@@ -18,6 +18,11 @@
   [andrebrumdev/ben10-omniverse-recomp](https://github.com/andrebrumdev/ben10-omniverse-recomp).
   O fork privado necessário ao build original não está disponível neste projeto.
   Não copiamos o código do host macOS; o boot Linux usa o runtime público MIT.
+- A branch pública `feat/engine-fixes-from-gow2-ben10` de
+  [andrebrumdev/ps3recomp-fork](https://github.com/andrebrumdev/ps3recomp-fork),
+  revisão `96dacc05bee47b91cf8851f33e054083d6d8653b`, foi inspecionada como
+  referência adicional. Ela contém correções mais antigas já incorporadas à
+  base pública usada aqui; não substitui o fork completo mencionado pelo port.
 - RPCS3: ferramenta externa usada nos modos `--decrypt` e `--installfw` para
   preparar o ELF e extrair o firmware do disco local. Não executa o jogo neste projeto. O download local fica
   em `artifacts/`, fora do Git. Não é redistribuído como runtime do port.
