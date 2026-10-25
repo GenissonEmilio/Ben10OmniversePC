@@ -9,6 +9,12 @@ organização da experiência de importação desse projeto; PPU/SPU usam ps3rec
 o trabalho real de importação, tradução, compilação e diagnóstico. Não confunda
 compilar o executável ou abrir uma janela com validar gameplay.
 
+A execução nativa já chegou à tela **Press Start**, com renderização Vulkan,
+entrada de controle e criação de um save de teste. Isso foi medido com o player
+de vídeo desativado apenas para diagnóstico. A reprodução SAIL e a transição
+depois de “Checking content” ainda impedem considerar o port pronto. Veja
+[docs/VALIDATION.md](docs/VALIDATION.md).
+
 ## Preparação local
 
 O importador valida metadados, versão, limites de arquivos e o SHA-256 do
@@ -16,6 +22,7 @@ executável antes de extrair. O ZIP/ISO original permanece inalterado.
 
 ```bash
 git submodule update --init --recursive
+python3 tools/apply_runtime_patches.py
 docker build -t ben10-omniverse-tools:local -f docker/Dockerfile .
 python3 tools/import_game.py '/caminho/jogo.iso'
 ```
@@ -30,6 +37,37 @@ SPU. Os resultados são separados por SHA-256. As ferramentas de ps3recomp
 traduzem esses arquivos localmente; `scripts/build-native.sh` compila as fontes
 geradas com Clang 18 e o backend Vulkan de Linux. O build usa duas tarefas e um
 limite de 4 GiB de RAM em um contêiner sem rede.
+
+Uma tradução local das partes identificadas pode ser reproduzida depois de
+importar e descriptografar o EBOOT:
+
+```bash
+data="$HOME/.local/share/Ben10OmniversePC"
+elf="$data/game/PS3_GAME/USRDIR/EBOOT.elf"
+hash=3ed23bca61cc9e392582e0c2cf0f114f24ce746f5724a2ab194e5aba944f1bea
+python3 tools/analyze_elf.py "$elf" --output "$data/native/analysis"
+python3 third_party/ps3recomp/tools/ppu_lifter.py "$elf" \
+  --functions "$data/native/analysis/$hash/functions.json" \
+  --hle-stubs "$data/native/analysis/$hash/imports.json" \
+  --chunk-lines 150000 --jobs 2 --output "$data/native/ppu"
+python3 third_party/ps3recomp/tools/build_spu_workloads.py \
+  --images "$data/native/analysis/$hash/spu" --lifted "$data/native/spu" \
+  --out "$data/native/spu/spu_workloads.c" \
+  --register-fn ben10_register_embedded_spu --constructor --title ben10
+python3 tools/lift_jobs.py "$elf" --output "$data/native/jobs"
+python3 tools/lift_overlays.py "$elf" --images "$data/native/analysis/$hash/spu" \
+  --output "$data/native/overlays"
+scripts/build-native.sh
+```
+
+`analyze_elf.py` preserva análises anteriores: se a pasta do hash já existir,
+use os resultados existentes ou escolha outro destino. As fontes traduzidas,
+o ELF e o executável gerado são dados locais do usuário.
+
+`scripts/test-linux.sh` executa os testes sintéticos; o GitHub Actions faz o
+mesmo sem ROM ou firmware. Isso não certifica gameplay.
+`scripts/probe-native.sh 30` faz um teste nativo limitado, com saves de
+diagnóstico separados. Um timeout desse teste não significa sucesso.
 
 Nada derivado do jogo deve ser adicionado ao Git. Dados, código traduzido,
 firmware, saves, logs, binários e chaves são ignorados. Consulte

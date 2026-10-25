@@ -1,0 +1,86 @@
+diff --git a/libs/video/cellGcmSys.c b/libs/video/cellGcmSys.c
+index efad9b9..1ca15aa 100644
+--- a/libs/video/cellGcmSys.c
++++ b/libs/video/cellGcmSys.c
+@@ -537,10 +537,12 @@ s32 cellGcmInit(u32 cmdSize, u32 ioSize, u32 ioAddress)
+         s_io_mapping_count = 1;
+     }
+ 
+-    /* Zero the guest-visible control register (put/get/ref). */
++    /* libgcm starts the reference at -1 (no fence submitted yet). Starting at
++     * zero makes a title's initial parity-zero wait deadlock before first flip.
++     * See RPCS3 sys_rsx_context_allocate and Ben 10's initial frame limiter. */
+     vm_write32(GCM_CONTROL_GUEST_ADDR + 0, 0);
+     vm_write32(GCM_CONTROL_GUEST_ADDR + 4, 0);
+-    vm_write32(GCM_CONTROL_GUEST_ADDR + 8, 0);
++    vm_write32(GCM_CONTROL_GUEST_ADDR + 8, 0xFFFFFFFFu);
+ 
+     /* Watch SPU DMA for pushbuffers. A title that builds its command stream on
+      * an SPU never tells libgcm where that stream is, so the write is the only
+@@ -2732,12 +2734,16 @@ static s32 gcm_flip_request(u32 bufferId, int in_fifo)
+         s_flip_request_count++;
+         s_flip_direct_pending = 1;
+     }
+-    /* Flip requested but not yet shown: a subsequent cellGcmSetWaitFlip blocks
+-     * until the present thread's cellGcmTickFlip marks it done (vsync). */
+-    FLIP_LOCK();
+-    s_flip_status = CELL_GCM_FLIP_STATUS_WAITING;
+-    s_flip_req_seq++;
+-    FLIP_UNLOCK();
++    /* Queueing a future FIFO flip must not erase an already observed hardware
++     * completion or invalidate a tick waiting to be pumped. The title arms
++     * that status explicitly with ResetFlipStatus. Only the legacy immediate
++     * path starts its own request here. */
++    if (!in_fifo) {
++        FLIP_LOCK();
++        s_flip_status = CELL_GCM_FLIP_STATUS_WAITING;
++        s_flip_req_seq++;
++        FLIP_UNLOCK();
++    }
+     s_last_flip_time = get_timestamp_ns();
+     if (PS3_FT_ON()) { const uint64_t t = ps3_ft_now();
+                        ps3_ft_span(PS3_FT_FLIP_REQ, 0, bufferId, (uint32_t)in_fifo, t, t); }
+@@ -2773,6 +2779,13 @@ static int gcm_flip_into_fifo(u32 ctx, u32 bufferId)
+     if (!ctx || bufferId >= CELL_GCM_MAX_DISPLAY_BUFFER_NUM ||
+         !s_display_buffer_set[bufferId]) return 0;
+     const u32 end = vm_read32(ctx + 4), cur = vm_read32(ctx + 8);
++    if (getenv("GCM_FLIP_FIFO_TRACE")) {
++        static int n = 0;
++        if (PS3_LOG_FIRST(n, 12)) fprintf(stderr,
++            "[flip-fifo] ctx=%08X begin=%08X current=%08X end=%08X io=%08X put=%08X get=%08X\n",
++            ctx, vm_read32(ctx), cur, end, gcm_ea2io(cur),
++            vm_read32(GCM_CONTROL_GUEST_ADDR), vm_read32(GCM_CONTROL_GUEST_ADDR + 4));
++    }
+     /* Never near the end: those bytes are the title's reserve before its
+      * ring wraps, and the recycle above keys on them. */
+     if (cur + 8 + GCM_RECYCLE_SLACK > end || gcm_ea2io(cur) == 0xFFFFFFFFu) return 0;
+diff --git a/libs/video/tests/test_gcm_flip_stream.c b/libs/video/tests/test_gcm_flip_stream.c
+index 455e2c6..40e69f9 100644
+--- a/libs/video/tests/test_gcm_flip_stream.c
++++ b/libs/video/tests/test_gcm_flip_stream.c
+@@ -205,6 +205,25 @@ int main(void)
+     p = GCM_PENDING_TAKE();
+     check(!(p & 2), "once");
+ 
++    /* A future frame can be queued between a hardware tick and its guest-side
++     * pump. The previous completion remains observable until an explicit reset. */
++    cellGcmResetFlipStatus();
++    (void)GCM_PENDING_TAKE();
++    cellGcmSetFlipCommand(1);
++    cellGcmTickFlip();
++    const u32 armed_seq = s_flip_req_seq;
++    (void)_cellGcmSetFlipCommand((void*)(uintptr_t)ctx, 1);
++    check(s_flip_req_seq == armed_seq, "queueing future FIFO work preserves the armed completion generation");
++    ppu_gcm_pump();
++    check(cellGcmGetFlipStatus() == CELL_GCM_FLIP_STATUS_DONE,
++          "the previous frame's completed tick survives future queued work");
++    (void)_cellGcmSetFlipCommand((void*)(uintptr_t)ctx, 1);
++    check(cellGcmGetFlipStatus() == CELL_GCM_FLIP_STATUS_DONE,
++          "queueing alone does not reset the hardware status");
++    cellGcmResetFlipStatus();
++    check(cellGcmGetFlipStatus() == CELL_GCM_FLIP_STATUS_WAITING,
++          "the explicit reset still arms the next completion");
++
+     printf("[gcm_flip_stream] %s (%d failed)\n", fails ? "FAIL" : "PASS", fails);
+     free(vm_base);
+     return fails ? 1 : 0;

@@ -1,0 +1,53 @@
+diff --git a/libs/spurs/cellSpurs.c b/libs/spurs/cellSpurs.c
+index 19a8516..e53886c 100644
+--- a/libs/spurs/cellSpurs.c
++++ b/libs/spurs/cellSpurs.c
+@@ -2241,7 +2241,7 @@ static struct {
+     u16 size_desc;
+     u16 max_grab;
+     int run_count;
+-    volatile long running;   /* 1 while a host thread walks this chain */
++    volatile LONG running;   /* fixed-width operand of the interlocked API */
+ } s_jobchains[MAX_JOBCHAINS];
+ 
+ static void jc_dump_commands(const char* tag, u32 ea, int max_words)
+@@ -2667,7 +2667,7 @@ static void jc_signal_done(u32 jc_ea, int job_index)
+     }
+ }
+ 
+-static void jc_execute(u32 entry_ea, u32 jc_ea, u32 size_desc)
++static void jc_execute(u32 entry_ea, u32 jc_ea, u32 size_desc, volatile LONG* running)
+ {
+     u32 pc = entry_ea, ret_pc = 0;
+     int jobs = 0;
+@@ -2680,11 +2680,21 @@ static void jc_execute(u32 entry_ea, u32 jc_ea, u32 size_desc)
+      * count that instead and reset it whenever real work happens. */
+     int idle = 0;
+     for (;; idle++) {
++        if (!_InterlockedCompareExchange(running, 1, 1)) return;
+         if (idle > 4096) break;
+         u64 cmd = vm_read64(pc);
+         u32 op  = (u32)(cmd & 7);
+         u32 ext = (u32)(cmd & 127);
+ 
++        /* Ben 10 pre-fills its producer ring with JTS (jump-to-self). The PPU
++         * replaces the current slot when it publishes work. This is a parked
++         * queue, not 4096 SYNC commands to skip and then declare malformed. */
++        if (cmd == 0x0000000800000012ull) {
++            Sleep(1);
++            idle = 0;
++            continue;
++        }
++
+         if (cmd != 0 && op == 0) {                    /* JOB */
+             { extern u32 g_spurs_job_ls_handle; g_spurs_job_ls_handle = jc_ea; }
+             int idx = jobs++;
+@@ -2741,7 +2751,7 @@ static DWORD WINAPI jc_thread(LPVOID p)
+     { const char* d = getenv("SPURS_JC_DELAY");
+       if (d && *d) Sleep((unsigned)atoi(d)); }
+     jc_execute(s_jobchains[slot].entry_ea, s_jobchains[slot].jc_ea,
+-               s_jobchains[slot].size_desc);
++               s_jobchains[slot].size_desc, &s_jobchains[slot].running);
+     s_jobchains[slot].running = 0;
+     /* Tell the application the chain is done. Without this the walk finishes
+      * in silence and a thread waiting on the attached queue never runs again. */

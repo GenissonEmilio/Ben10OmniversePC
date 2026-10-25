@@ -1,0 +1,50 @@
+diff --git a/libs/input/cellPad.c b/libs/input/cellPad.c
+index 7fa8cab..aea1d33 100644
+--- a/libs/input/cellPad.c
++++ b/libs/input/cellPad.c
+@@ -333,6 +333,37 @@ static u8 pad_sdl_trigger_to_u8(int raw)
+     return (u8)val;
+ }
+ 
++/* Linux desktop fallback, using the SDL window's event/keyboard state. Losing
++ * focus releases every button; a physical controller retains priority. */
++static void pad_poll_sdl_keyboard(void)
++{
++    if (getenv("PAD_NO_KEYBOARD")) return;
++    PadHostState* hs = &s_host_state[0];
++    memset(hs, 0, sizeof *hs);
++    hs->connected = 1;
++    hs->analog_lx = hs->analog_ly = hs->analog_rx = hs->analog_ry = 128;
++    if (!SDL_GetKeyboardFocus()) return;
++    const Uint8* keys = SDL_GetKeyboardState(NULL);
++    const struct { SDL_Scancode key; u16 button; } map[] = {
++        {SDL_SCANCODE_UP, CELL_PAD_CTRL_UP}, {SDL_SCANCODE_DOWN, CELL_PAD_CTRL_DOWN},
++        {SDL_SCANCODE_LEFT, CELL_PAD_CTRL_LEFT}, {SDL_SCANCODE_RIGHT, CELL_PAD_CTRL_RIGHT},
++        {SDL_SCANCODE_SPACE, CELL_PAD_CTRL_CROSS}, {SDL_SCANCODE_Z, CELL_PAD_CTRL_CROSS},
++        {SDL_SCANCODE_X, CELL_PAD_CTRL_CIRCLE}, {SDL_SCANCODE_C, CELL_PAD_CTRL_SQUARE},
++        {SDL_SCANCODE_V, CELL_PAD_CTRL_TRIANGLE}, {SDL_SCANCODE_Q, CELL_PAD_CTRL_L1},
++        {SDL_SCANCODE_E, CELL_PAD_CTRL_R1}, {SDL_SCANCODE_R, CELL_PAD_CTRL_L2},
++        {SDL_SCANCODE_F, CELL_PAD_CTRL_R2}, {SDL_SCANCODE_RETURN, CELL_PAD_CTRL_START},
++        {SDL_SCANCODE_TAB, CELL_PAD_CTRL_SELECT},
++    };
++    for (unsigned i = 0; i < sizeof map / sizeof map[0]; ++i)
++        if (keys[map[i].key]) hs->buttons |= map[i].button;
++    hs->analog_lx = keys[SDL_SCANCODE_A] ? 0 : keys[SDL_SCANCODE_D] ? 255 : 128;
++    hs->analog_ly = keys[SDL_SCANCODE_W] ? 0 : keys[SDL_SCANCODE_S] ? 255 : 128;
++    hs->analog_rx = keys[SDL_SCANCODE_J] ? 0 : keys[SDL_SCANCODE_L] ? 255 : 128;
++    hs->analog_ry = keys[SDL_SCANCODE_I] ? 0 : keys[SDL_SCANCODE_K] ? 255 : 128;
++    hs->trigger_l2 = keys[SDL_SCANCODE_R] ? 255 : 0;
++    hs->trigger_r2 = keys[SDL_SCANCODE_F] ? 255 : 0;
++}
++
+ /* Send port i's rumble state to its controller, with a fresh duration. */
+ static void pad_sdl_rumble_send(int i)
+ {
+@@ -502,6 +533,7 @@ static void pad_poll_backend(void)
+     pad_poll_xinput();
+ #elif PAD_BACKEND_SDL2
+     pad_poll_sdl2();
++    if (!s_host_state[0].connected) pad_poll_sdl_keyboard();
+ #endif
+ #ifdef _WIN32
+     if (!s_host_state[0].connected) pad_poll_keyboard();

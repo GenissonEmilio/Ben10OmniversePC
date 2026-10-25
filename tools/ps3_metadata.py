@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
 """Inspect a local PS3 game directory/ISO without running game code or decrypting it."""
-import argparse
-import hashlib
-import json
 from pathlib import Path
-import re
-import shutil
 import struct
-import subprocess
-import sys
-import threading
 
 PROJECT = Path(__file__).resolve().parents[1]
 MAX_SFO = 1024 * 1024

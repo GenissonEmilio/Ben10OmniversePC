@@ -43,6 +43,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "flat_vm.h"
 
 extern "C" {
 uint32_t ppu_load_elf(const char* path);
@@ -453,6 +454,22 @@ static DWORD WINAPI guest_prof_thread(LPVOID)
 }
 
 extern "C" const char* cellGame_get_title(void);   /* PARAM.SFO TITLE, for the caption */
+
+#ifndef _WIN32
+extern "C" void ppu_report_guest_lrs(void);
+extern "C" const char* g_hle_inflight[];
+static DWORD WINAPI ben10_watchdog(LPVOID)
+{
+    for (;;) {
+        Sleep(10000);
+        fprintf(stderr, "[ben10-watchdog] flips=%u\n", cellGcm_flip_request_count());
+        ppu_report_guest_lrs();
+        for (unsigned i = 0; i < 64; ++i)
+            if (g_hle_inflight[i]) fprintf(stderr, "[ben10-watchdog] tid=%u inside %s\n", i, g_hle_inflight[i]);
+    }
+    return 0;
+}
+#endif
 
 static DWORD WINAPI vblank_ticker(LPVOID)
 {
@@ -1147,8 +1164,8 @@ int main(int argc, char** argv)
     vm_base = (uint8_t*)VirtualAlloc(NULL, VM_SIZE, MEM_RESERVE, PAGE_READWRITE);
     ppu_vm_size = 0;   /* full 32-bit space backed -> OOB guard unnecessary */
 #else
-    vm_base = (uint8_t*)calloc(1, 0xE0000000u);
-    ppu_vm_size = 0xE0000000u;
+    vm_base = ben10_map_flat_vm();
+    ppu_vm_size = 0; /* full 32-bit space, plus a 64 KiB top-edge guard */
 #endif
     if (!vm_base) { printf("vm alloc failed\n"); return 1; }
 
@@ -1219,6 +1236,10 @@ int main(int argc, char** argv)
     CreateThread(NULL, 4u * 1024 * 1024, vblank_ticker, NULL, 0, NULL);
     if (getenv("PS3_GUEST_PROF"))
         CreateThread(NULL, 0, guest_prof_thread, NULL, 0, NULL);
+#ifndef _WIN32
+    if (getenv("BEN10_WATCHDOG"))
+        CreateThread(NULL, 0, ben10_watchdog, NULL, 0, NULL);
+#endif
 #ifdef _WIN32
     CreateThread(NULL, 0, hang_watchdog, NULL, 0, NULL);
     /* PS3_DEBUG=<file>: ask a running title what it is doing. */

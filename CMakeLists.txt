@@ -15,6 +15,23 @@ option(PS3RECOMP_FFMPEG_RUNTIME "Decode media with runtime FFmpeg" ON)
 include(CTest)
 add_subdirectory("${PS3RECOMP_DIR}" ps3recomp)
 
+if(BUILD_TESTING AND UNIX)
+    add_executable(test_ben10_flat_vm tests/test_flat_vm.c)
+    target_include_directories(test_ben10_flat_vm PRIVATE host "${PS3RECOMP_DIR}/runtime/memory")
+    add_test(NAME ben10_flat_vm COMMAND test_ben10_flat_vm)
+endif()
+if(BUILD_TESTING AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    add_executable(test_ben10_job_ring tests/test_job_ring.c
+        "${PS3RECOMP_DIR}/runtime/platform/win32_compat.c")
+    target_include_directories(test_ben10_job_ring PRIVATE "${PS3RECOMP_DIR}/include"
+        "${PS3RECOMP_DIR}/runtime/spu" "${PS3RECOMP_DIR}/runtime/platform")
+    target_compile_options(test_ben10_job_ring PRIVATE -O1 -UNDEBUG -ffunction-sections -fdata-sections)
+    target_link_options(test_ben10_job_ring PRIVATE -Wl,--gc-sections)
+    target_link_libraries(test_ben10_job_ring PRIVATE pthread m)
+    add_test(NAME ben10_job_ring COMMAND test_ben10_job_ring)
+    set_tests_properties(ben10_job_ring PROPERTIES TIMEOUT 8)
+endif()
+
 if(BEN10_BUILD_GAME)
     set(RECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/recomp" CACHE PATH "Local Ben 10 Omniverse PPU lift")
     if(NOT EXISTS "${RECOMP_DIR}/ppu_recomp.h")
@@ -43,6 +60,34 @@ if(BEN10_BUILD_GAME)
         "${PS3RECOMP_DIR}/runtime/memory" "${PS3RECOMP_DIR}/runtime/syscalls"
         "${PS3RECOMP_DIR}/runtime/platform" "${PS3RECOMP_DIR}/libs/video")
     set_source_files_properties(${RECOMP_SOURCES} PROPERTIES COMPILE_OPTIONS "-O1;-w;-ffp-contract=off")
+    set(SPU_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/spu" CACHE PATH "Locally translated SPU workloads")
+    file(GLOB SPU_SOURCES CONFIGURE_DEPENDS "${SPU_DIR}/*/spu_recomp.c")
+    if(SPU_SOURCES AND EXISTS "${SPU_DIR}/spu_workloads.c")
+        list(APPEND SPU_SOURCES "${SPU_DIR}/spu_workloads.c"
+             "${PS3RECOMP_DIR}/runtime/spu/spu_dispatch_mt.c")
+        target_sources(Ben10OmniverseRecomp PRIVATE ${SPU_SOURCES})
+        set_source_files_properties(${SPU_SOURCES} PROPERTIES
+            COMPILE_OPTIONS "-O1;-w;-ffp-contract=off"
+            COMPILE_DEFINITIONS "SPU_USE_DISPATCH_MT")
+    endif()
+    set(SPU_JOB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/spu_jobs" CACHE PATH "Locally translated raw SPURS jobs")
+    file(GLOB JOB_SOURCES CONFIGURE_DEPENDS "${SPU_JOB_DIR}/*/spu_recomp.c")
+    if(JOB_SOURCES AND EXISTS "${SPU_JOB_DIR}/spu_jobs.c")
+        list(APPEND JOB_SOURCES "${SPU_JOB_DIR}/spu_jobs.c")
+        target_sources(Ben10OmniverseRecomp PRIVATE ${JOB_SOURCES})
+        set_source_files_properties(${JOB_SOURCES} PROPERTIES
+            COMPILE_OPTIONS "-O1;-w;-ffp-contract=off"
+            COMPILE_DEFINITIONS "SPU_USE_DISPATCH_MT")
+    endif()
+    set(SPU_OVERLAY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/spu_overlays" CACHE PATH "Locally translated dynamic SPU plugins")
+    file(GLOB OVERLAY_SOURCES CONFIGURE_DEPENDS "${SPU_OVERLAY_DIR}/*/spu_recomp.c")
+    if(OVERLAY_SOURCES AND EXISTS "${SPU_OVERLAY_DIR}/spu_overlays.c")
+        list(APPEND OVERLAY_SOURCES "${SPU_OVERLAY_DIR}/spu_overlays.c")
+        target_sources(Ben10OmniverseRecomp PRIVATE ${OVERLAY_SOURCES})
+        set_source_files_properties(${OVERLAY_SOURCES} PROPERTIES
+            COMPILE_OPTIONS "-O1;-w;-ffp-contract=off"
+            COMPILE_DEFINITIONS "SPU_USE_DISPATCH_MT")
+    endif()
     target_link_libraries(Ben10OmniverseRecomp PRIVATE ps3recomp_runtime)
     target_compile_options(Ben10OmniverseRecomp PRIVATE -fno-strict-aliasing -ffp-contract=off)
     set_target_properties(Ben10OmniverseRecomp PROPERTIES LINKER_LANGUAGE CXX)

@@ -40,9 +40,9 @@ class Import(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def iso(self):
+    def iso(self, joliet=False):
         iso=self.base/"own-fixture.iso"
-        subprocess.run(["genisoimage","-quiet","-iso-level","3","-o",str(iso),str(self.base/"disc")],check=True)
+        subprocess.run(["genisoimage","-quiet","-iso-level","3",*(["-J"] if joliet else []),"-o",str(iso),str(self.base/"disc")],check=True)
         return iso
 
     def test_import_is_atomic_and_does_not_claim_gameplay(self):
@@ -70,6 +70,14 @@ class Import(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"preservados"):
             import_iso(self.iso(),dest,lambda _:None)
         self.assertEqual((dest/"owner-save").read_bytes(),b"saved")
+
+    def test_joliet_preserves_names_opened_by_the_game_on_linux(self):
+        folder=self.base/"disc/PS3_GAME/USRDIR/Configurations"
+        folder.mkdir()
+        (folder/"0000000100000001.cfg").write_bytes(b"config")
+        with patch("import_game.EBOOT_SHA256",hashlib.sha256(self.binary).hexdigest()):
+            import_iso(self.iso(joliet=True),self.base/"installed",lambda _:None)
+        self.assertEqual((self.base/"installed/PS3_GAME/USRDIR/Configurations/0000000100000001.cfg").read_bytes(),b"config")
 
 
 class Metadata(unittest.TestCase):

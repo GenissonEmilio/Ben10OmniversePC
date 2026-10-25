@@ -12,7 +12,7 @@ import os, struct, sys
 SECTOR = 2048
 
 
-def read_dir(f, lba, size, path, out, dirs, base=0):
+def read_dir(f, lba, size, path, out, dirs, base=0, encoding='ascii'):
     if path.count("/") > 8 or len(dirs) > 4096 or (base+lba, size) in dirs:
         raise ValueError("Invalid or cyclic ISO directory")
     if size < 0 or size > 16*1024*1024 or (base+lba)*SECTOR+size > os.fstat(f.fileno()).st_size:
@@ -36,25 +36,42 @@ def read_dir(f, lba, size, path, out, dirs, base=0):
         off += rlen
         if name in (b'\x00', b'\x01'):
             continue
-        name = name.decode('ascii', 'replace').split(';')[0]
+        name = name.decode(encoding, 'strict').split(';')[0]
         if not name or name in ('.', '..') or any(c in name for c in ('/', '\\', ':', '\x00')):
             raise ValueError('Unsafe ISO file name')
         full = f'{path}/{name}' if path else name
         if (base+ext_lba)*SECTOR+ext_len > os.fstat(f.fileno()).st_size:
             raise ValueError('Truncated ISO file')
         if flags & 2:
-            read_dir(f, ext_lba, ext_len, full, out, dirs, base)
+            read_dir(f, ext_lba, ext_len, full, out, dirs, base, encoding)
         else:
             out.append((full, base + ext_lba, ext_len))
 
 
-def scan(f):
+def scan(f, *, joliet=False):
     f.seek(16 * SECTOR)
     pvd = f.read(SECTOR)
-    assert pvd[1:6] == b'CD001', 'not ISO9660'
+    if len(pvd) != SECTOR or pvd[:7] != b'\x01CD001\x01':
+        raise ValueError('not ISO9660')
+    selected, encoding = pvd, 'ascii'
+    if joliet:
+        # PS3 discs can expose uppercased aliases in their primary tree.
+        # Prefer the supplementary Joliet tree to retain the exact names the
+        # executable opens on a case-sensitive Linux filesystem.
+        for sector in range(17, 48):
+            f.seek(sector * SECTOR)
+            descriptor = f.read(SECTOR)
+            if len(descriptor) != SECTOR or descriptor[1:7] != b'CD001\x01':
+                raise ValueError('Invalid ISO volume descriptor')
+            if descriptor[0] == 255:
+                break
+            if descriptor[0] == 2 and descriptor[88:91] in (b'%/@', b'%/C', b'%/E'):
+                selected, encoding = descriptor, 'utf-16-be'
+        else:
+            raise ValueError('Excessive ISO volume descriptors')
     files, dirs = [], []
-    root = pvd[156:156 + 34]
-    read_dir(f, struct.unpack_from('<I', root, 2)[0], struct.unpack_from('<I', root, 10)[0], '', files, dirs)
+    root = selected[156:156 + 34]
+    read_dir(f, struct.unpack_from('<I', root, 2)[0], struct.unpack_from('<I', root, 10)[0], '', files, dirs, encoding=encoding)
     layer0 = struct.unpack_from('<I', pvd, 80)[0]
     layer1 = 0
     f.seek(layer0 * SECTOR)

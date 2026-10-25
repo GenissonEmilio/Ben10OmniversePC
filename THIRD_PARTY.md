@@ -8,6 +8,10 @@
   [GenissonEmilio/GodOfWar2PC](https://github.com/GenissonEmilio/GodOfWar2PC),
   GPL-3.0. Sua procedência original está no cabeçalho do arquivo. O limite de
   arquivos foi ajustado para o disco de PS3, que contém mais de 4.096 arquivos.
+  A leitura da árvore Joliet foi acrescentada para preservar os nomes no Linux.
+- `patches/`: alterações locais ao runtime MIT, incluindo regressões sintéticas.
+  A arena POSIX, o tratamento de JTS, os estados de flip e o teclado SDL são
+  identificados em `docs/VALIDATION.md`; não são aplicados aos outros ports.
 - Organização de build: projeto GodOfWar3PS3 local, baseado no esquema aberto de
   [arnaldolima1/gow-ascension-pc](https://github.com/arnaldolima1/gow-ascension-pc), MIT.
 - Referência técnica do mesmo título:

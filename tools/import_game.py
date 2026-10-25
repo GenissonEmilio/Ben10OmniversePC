@@ -37,7 +37,7 @@ def import_iso(iso, destination, progress=print):
     if destination.exists():
         raise ValueError("O destino já existe; os dados atuais foram preservados")
     with iso.open("rb") as stream:
-        files, layer1 = scan(stream)
+        files, layer1 = scan(stream, joliet=True)
         if layer1:
             raise ValueError("A imagem não corresponde ao disco PS3 de camada única esperado")
         sfo = parse_sfo(read_entry(stream, files, "PS3_GAME/PARAM.SFO", 1024 * 1024))
