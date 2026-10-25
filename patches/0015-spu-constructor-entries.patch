@@ -1,0 +1,39 @@
+--- a/tools/find_spu_functions.py
++++ b/tools/find_spu_functions.py
+@@ -491,6 +491,28 @@
+     return targets
+ 
+ 
++def collect_init_array_targets(buf, sections, insns_by_addr):
++    """ELF constructor/destructor arrays may contain just one code pointer.
++
++    Their section metadata identifies the pointer table, unlike the heuristic
++    three-entry minimum used for unknown data. Ignore legacy 0/-1 sentinels
++    and require an actual decoded instruction at every accepted address.
++    """
++    targets = set()
++    for section in sections:
++        if section.get("name") not in (".ctors", ".dtors", ".init_array",
++                                        ".fini_array", ".preinit_array"):
++            continue
++        start, size = section["off"], section["size"]
++        if start < 0 or size % 4 or start + size > len(buf):
++            raise ValueError("SPU initialization array outside ELF")
++        for offset in range(start, start + size, 4):
++            target = be_u32(buf, offset)
++            if target not in (0, 0xFFFFFFFF) and target % 4 == 0 and target in insns_by_addr:
++                targets.add(target)
++    return targets
++
++
+ def collect_function_pointer_tables(buf, phs, code_start, code_end,
+                                     insns_by_addr, min_run=3, max_run=1024):
+     """Function-pointer tables that live in DATA, not .text.
+@@ -634,6 +656,7 @@
+     # ---- seeds ----
+     syms = read_symbols(buf, elf["shs"]) if elf["shs"] else []
+     seed_starts = set()
++    seed_starts.update(collect_init_array_targets(buf, elf["shs"], insns_by_addr))
+     sized_funcs = []   # (start, end) from symbols with non-zero size
+ 
+     # ELF entry point — 0 is a valid LS address, so don't treat falsy as unset.

@@ -1,0 +1,29 @@
+--- a/libs/spurs/cellSpurs.c
++++ b/libs/spurs/cellSpurs.c
+@@ -2909,9 +2909,12 @@
+      * (derived at 0x12914..0x129B8). Leaving it zero degenerated both and made
+      * the queue look permanently empty no matter what a producer wrote. */
+     vm_write32(q + 0x0C, depth);
+-    vm_write32(q + 0x10, size);
+-    vm_write32(q + 0x14, depth);
+-    vm_write64(q + 0x18, (u64)(uint32_t)buffer_ea);
++    /* The SPU queue library loads size from word 2 of the first quadword
++     * and the buffer from the next quadword's first doubleword. The old
++     * LFQueue-shaped offsets yielded size=0 and buffer EA=1 in real codecs. */
++    vm_write32(q + 0x08, size);
++    vm_write64(q + 0x10, (u64)(uint32_t)buffer_ea);
++    vm_write32(q + 0x1C, direction);
+     /* NOT direction at +0x24 and NOT init at +0x2C. Both sit inside the
+      * 16-byte group at +0x20..+0x2F that the consumer owns and shifts wholesale
+      * (shlqbyi <group>,1 at 0x12A0C). The trace shows the two values we used to
+@@ -2979,8 +2982,8 @@
+     for (;;) {
+         spu_lockline_lock();
+         s32 pop_raw = (s32)vm_read32(q), push_raw = (s32)vm_read32(q + 4);
+-        u32 depth = vm_read32(q + 12), size = vm_read32(q + 16);
+-        u32 buffer = (u32)vm_read64(q + 24);
++        u32 depth = vm_read32(q + 12), size = vm_read32(q + 8);
++        u32 buffer = (u32)vm_read64(q + 16);
+         if (!depth || depth > INT32_MAX / 2u || !size || !buffer ||
+             size > UINT32_MAX / depth ||
+             !spurs_guest_range_valid(buffer, (u64)size * depth) ||

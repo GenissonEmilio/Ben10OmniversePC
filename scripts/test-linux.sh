@@ -6,7 +6,7 @@ python3 -m unittest discover -s "$root/tests" -v
 docker run --rm --cpus=2 --memory=4g --memory-swap=4g --network=none \
     --user "$(id -u):$(id -g)" --cap-drop=ALL --security-opt=no-new-privileges \
     -e HOME=/tmp -e CCACHE_DIR=/workspace/build/ccache \
-    -v "$root:/workspace:Z" -w /workspace ben10-omniverse-tools:local bash -c '
+    -v "$root:/workspace:z" -w /workspace ben10-omniverse-tools:local bash -c '
         set -euo pipefail
         cmake -S . -B build/validation -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DBEN10_BUILD_GAME=OFF -DPS3RECOMP_BUILD_TESTS=ON \

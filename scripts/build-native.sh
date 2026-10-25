@@ -12,7 +12,7 @@ docker run --rm --cpus=2 --memory=4g --memory-swap=4g --network=none \
     --user "$(id -u):$(id -g)" --cap-drop=ALL --security-opt=no-new-privileges \
     -e HOME=/tmp -e CCACHE_DIR=/workspace/build/ccache \
     -e BEN10_SPU_AVX2="$simd" \
-    -v "$root:/workspace:Z" -v "$data:/data:Z" --workdir /workspace \
+    -v "$root:/workspace:z" -v "$data:/data:z" --workdir /workspace \
     ben10-omniverse-tools:local bash -c '
         set -euo pipefail
         cmake -S . -B build/native -G Ninja -DCMAKE_BUILD_TYPE=Release \

@@ -37,7 +37,7 @@ def main():
     if not inventory: raise ValueError("Nenhum programa SPU de codec encontrado")
     subprocess.run([sys.executable, str(SDK / "build_spu_workloads.py"),
                     "--images", str(images), "--lifted", str(lifted),
-                    "--out", str(lifted / "spu_codecs.c"),
+                    "--out", str(lifted / "spu_codecs.c"), "--relift",
                     "--register-fn", "ben10_register_codec_spu", "--title", "ben10-media-codecs"], check=True)
     registrations, ids, fingerprints = [], {}, {}
     for i, item in enumerate(inventory, 400):

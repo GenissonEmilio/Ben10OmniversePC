@@ -32,6 +32,12 @@ int main(void)
 {
     vm_base = calloc(1, ppu_vm_size); assert(vm_base);
     assert(_cellSpursQueueInitialize(0, 0x5000, 0x1000, 0x2000, 16, 2, 2) == CELL_OK);
+    // Literal BE wire layout consumed by the firmware SPU queue library:
+    // pop, push, element size, depth, buffer u64, event port, direction.
+    const uint8_t header[32] = {
+        0,0,0,0, 0,0,0,0, 0,0,0,16, 0,0,0,2,
+        0,0,0,0, 0,0,0x20,0, 0,0,0,0, 0,0,0,2};
+    assert(!memcmp(vm_base + 0x1000, header, sizeof header));
     assert(cellSpursQueuePopBody(0x1000, 0x4000, 0, 0) == (s32)0x8041090Au);
     vm_write32(0x3000, 1);
     vm_base[0x1020] = 1; vm_base[0x1021] = 7;
