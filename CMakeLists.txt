@@ -17,6 +17,12 @@ include(CTest)
 add_subdirectory("${PS3RECOMP_DIR}" ps3recomp)
 
 if(BUILD_TESTING AND UNIX)
+    add_executable(test_ben10_window_offset tests/test_rsx_window_offset.c
+        "${PS3RECOMP_DIR}/libs/video/rsx_dispatch.c")
+    target_include_directories(test_ben10_window_offset PRIVATE "${PS3RECOMP_DIR}/include"
+        "${PS3RECOMP_DIR}/libs/video")
+    target_compile_options(test_ben10_window_offset PRIVATE -O1 -UNDEBUG)
+    add_test(NAME ben10_window_offset COMMAND test_ben10_window_offset)
     add_executable(test_ben10_flat_vm tests/test_flat_vm.c)
     target_include_directories(test_ben10_flat_vm PRIVATE host "${PS3RECOMP_DIR}/runtime/memory")
     add_test(NAME ben10_flat_vm COMMAND test_ben10_flat_vm)

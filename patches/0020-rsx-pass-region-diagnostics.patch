@@ -1,0 +1,28 @@
+diff --git a/libs/video/rsx_draw_engine.c b/libs/video/rsx_draw_engine.c
+index f99986b..096805d 100644
+--- a/libs/video/rsx_draw_engine.c
++++ b/libs/video/rsx_draw_engine.c
+@@ -2448,6 +2448,10 @@ static void pd_note(const u32* targets, u32 n_targets, u32 zslot,
+         return;
+     }
+     if (s_pd.draws_log) {
++        rsx_dsp_surface ds;
++        rsx_dsp_viewport dv;
++        rsx_dsp_get_surface(&g.rsx, &ds);
++        rsx_dsp_get_viewport(&g.rsx, &dv);
+         fprintf(s_pd.draws_log, "pass %03u draw %u: pipe %u cmask %08X blend %u %X/%X"
+                 " dt %u dw %u at %u |", s_pd.pass, s_pd.draws, pipeline, rs->color_mask,
+                 rs->blend_enable, rs->sf_rgb, rs->df_rgb, rs->depth_test, rs->depth_write,
+@@ -2459,7 +2463,11 @@ static void pd_note(const u32* targets, u32 n_targets, u32 zslot,
+             fprintf(s_pd.draws_log, " t%u %u:0x%08X f%02X %ux%u", u, t.location, t.offset,
+                     t.format & 0xFFu, t.width, t.height);
+         }
+-        fprintf(s_pd.draws_log, "\n");
++        fprintf(s_pd.draws_log, " | clip %u,%u %ux%u vp %u,%u %ux%u"
++                " sc %08X/%08X\n", ds.clip_x, ds.clip_y, ds.clip_w, ds.clip_h,
++                dv.x, dv.y, dv.w, dv.h,
++                rsx_dsp_reg(&g.rsx, M_SCISSOR_HORIZONTAL),
++                rsx_dsp_reg(&g.rsx, M_SCISSOR_VERTICAL));
+     }
+     if (s_pd.draws++) return;
+ 

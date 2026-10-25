@@ -16,6 +16,7 @@ docker run --rm --cpus=2 --memory=4g --memory-swap=4g --network=none \
         python3 third_party/ps3recomp/tools/test_gcm_flip_stream.py
         python3 third_party/ps3recomp/tools/test_spurs_scheduler.py
         python3 third_party/ps3recomp/tools/test_ppu_jumptables.py
+        python3 third_party/ps3recomp/tools/test_rsx_immediate_vertices.py
         if python3 -c '\''from pathlib import Path; raise SystemExit("avx2" not in Path("/proc/cpuinfo").read_text())'\''; then
             "$CC" -O3 -mavx2 -ffp-contract=off -Ithird_party/ps3recomp/include \
                 third_party/ps3recomp/runtime/spu/tests/test_spu_float_neon.c -lm \

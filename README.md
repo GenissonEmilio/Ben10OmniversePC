@@ -9,13 +9,13 @@ organização da experiência de importação desse projeto; PPU/SPU usam ps3rec
 o trabalho real de importação, tradução, compilação e diagnóstico. Não confunda
 compilar o executável ou abrir uma janela com validar gameplay.
 
-A execução nativa já chegou à tela **Press Start**, com renderização Vulkan,
-entrada via API de controle e criação/reabertura de um save de teste. Isso foi
-medido com o player de vídeo desativado apenas para diagnóstico. Também foram
-traduzidos onze módulos PPU e 24 programas SPU de mídia do firmware do próprio
-disco, além de oito variantes OVIS que compartilham endereços SPU. A reprodução
-SAIL e a transição depois de “Loading content” ainda
-impedem considerar o port pronto. Veja
+A execução nativa já chegou ao menu 3D, à criação/reabertura de save e à
+primeira fase **Training Time**, incluindo a cena 3D e os diálogos. Uma correção
+no registro RSX `WINDOW_OFFSET` recuperou a imagem que o pós-processamento
+estava apagando. Os vídeos continuam desativados somente para diagnóstico;
+ainda faltam validação de combate, áudio real, desempenho e entrega instalável.
+Também foram traduzidos onze módulos PPU, 24 programas SPU de mídia e oito
+variantes OVIS do firmware do próprio disco. Veja
 [docs/VALIDATION.md](docs/VALIDATION.md).
 
 ## Preparação local

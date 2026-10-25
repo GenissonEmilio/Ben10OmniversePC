@@ -69,19 +69,26 @@ Uma regressão percorre 40 frames fabricados, incluindo reutilização da fila,
 compara pixels e PTS e exige EMPTY após consumir todos os metadados disponíveis.
 Essas correções ainda não demonstram reprodução visível nem gameplay.
 
-Uma captura posterior, sem player, acompanhou 12 passes do renderer. As imagens
-intermediárias contêm o cenário, os personagens e a interface do menu 3D;
-o frame apresentado termina com a camada “Loading content” cobrindo a cena.
-Isso distingue geometria/texturas já produzidas de uma inicialização que
-não teria renderizado a cena. Os comandos Start/Cross foram consumidos, mas
-não foi observada liberação do carregamento ou entrada numa fase. A captura
-local está em `artifacts/rsx60/`, incluindo `passes.txt` e `present009.ppm`;
-esses arquivos contêm imagens do jogo e permanecem fora do Git.
+A captura sem player chegou ao menu 3D, “Games”, “New Game”, seleção de
+dificuldade, escolha de slot e gravação do save `BLUS31017_10000000`. O mapa
+`AD5E48BA6819B809` da fase **Training Time** carregou, com diálogos e tutorial
+de combate. A opção Continue também reabriu esse save e carregou a fase.
 
-Não foram validados navegação completa do menu, carregamento de fase, combate
-ou performance de gameplay. A taxa de flips de uma tela de título
-não é uma medição de FPS do jogo. Os testes usam o driver de áudio `dummy`;
-a saída de áudio real também permanece sem validação.
+Os passes intermediários já tinham cenário e personagens, mas o pós-processamento
+lia regiões pretas. O título usa `NV4097_SET_WINDOW_OFFSET` (0x02B8) para escrever
+as imagens do atlas em endereços como 0x1200, 0x0C00 e 0x1400, mantendo viewport e
+scissor relativos à janela. O decoder agora aplica o deslocamento ao endereço de
+cada attachment, com pitch e tamanho de pixel próprios, incluindo zeta e AA.
+`SURFACE_CLIP` permanece independente. A captura posterior confirmou a imagem
+final 3D no menu e na introdução da fase. Os dumps contêm arte do jogo e ficam
+somente em `artifacts/rsx69/` e `artifacts/probe69-present.ppm`, fora do Git.
+O teste sintético cobre atlas, quatro pitches MRT, profundidade, AA, formatos,
+reset e decodificação repetida. A suíte neutra do draw engine também passou.
+
+Ainda não foram validados movimento/combate sob controle do jogador, saída de
+áudio real e desempenho suficiente para uma entrega jogável. Os testes usam o
+driver de áudio `dummy`. A amostra da introdução da fase ficou perto de 6 flips
+por segundo, sob cota de CPU de 300%; isso não certifica FPS de gameplay.
 
 Os testes reais usam escopos systemd com limite de RAM de 4 GiB, sem swap,
 CPU limitada e timeout, separados das outras instalações. Os builds usam dois
@@ -91,6 +98,7 @@ teste desliga ou reinicia o computador.
 
 ## Correções reproduzíveis
 
+- RSX: janelas do framebuffer respeitam `WINDOW_OFFSET`, inclusive endereço local zero.
 - Boot POSIX: arena virtual alinhada a 4 GiB e commits de páginas testados.
 - Importação: árvore Joliet preserva os nomes que o programa abre em Linux.
 - GCM: referência inicial -1 e preservação da conclusão anterior quando um
@@ -138,3 +146,8 @@ e [cellOvis](https://github.com/RPCS3/rpcs3/blob/master/rpcs3/Emu/Cell/Modules/c
 RPCS3 foi usado como referência e nos modos `--decrypt` e `--installfw`, para
 preparação local do ELF e extração do firmware. O jogo não foi executado por
 emulação nesta validação.
+
+A semântica de deslocamento foi conferida na implementação de referência
+[RPCS3 RSXThread::get_framebuffer_layout](https://github.com/RPCS3/rpcs3/blob/master/rpcs3/Emu/RSX/RSXThread.cpp),
+na parte que trata os raster/window offsets. Foram usadas as regras de endereço;
+a implementação e os vetores deste projeto são independentes.

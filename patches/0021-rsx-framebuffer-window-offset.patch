@@ -1,0 +1,49 @@
+diff --git a/libs/video/rsx_dispatch.c b/libs/video/rsx_dispatch.c
+index 7350528..ee80fa4 100644
+--- a/libs/video/rsx_dispatch.c
++++ b/libs/video/rsx_dispatch.c
+@@ -66,6 +66,7 @@
+ #define M_COLOR3_PITCH          0x0284
+ #define M_COLOR2_OFFSET         0x0288
+ #define M_COLOR3_OFFSET         0x028C
++#define M_WINDOW_OFFSET         0x02B8
+ #define M_VIEWPORT_HORIZ        0x0A00
+ #define M_VIEWPORT_VERT         0x0A04
+ #define M_VIEWPORT_TRANSLATE    0x0A20
+@@ -190,6 +191,7 @@ void rsx_dispatch_init(rsx_dispatch* rsx, const rsx_dispatch_sink* sink)
+     mark_class(rsx, M_DMA_COLOR2,        2, RSX_DSP_CLASS_STATE);
+     mark_class(rsx, M_RT_HORIZ,         12, RSX_DSP_CLASS_STATE); /* 0x200..0x22C */
+     mark_class(rsx, M_COLOR2_PITCH,      4, RSX_DSP_CLASS_STATE);
++    mark_class(rsx, M_WINDOW_OFFSET,     1, RSX_DSP_CLASS_STATE);
+     mark_class(rsx, M_VIEWPORT_HORIZ,    2, RSX_DSP_CLASS_STATE);
+     mark_class(rsx, M_VIEWPORT_TRANSLATE, 8, RSX_DSP_CLASS_STATE);
+     mark_class(rsx, M_VTXBUF_OFFSET,    16, RSX_DSP_CLASS_STATE);
+@@ -496,6 +498,28 @@ void rsx_dsp_get_surface(const rsx_dispatch* rsx, rsx_dsp_surface* out)
+     out->zeta_offset   = rsx_dsp_reg(rsx, M_ZETA_OFFSET);
+     out->zeta_pitch    = rsx_dsp_reg(rsx, M_ZETA_PITCH);
+     out->zeta_location = dma_to_location(rsx_dsp_reg(rsx, M_DMA_ZETA));
++
++    /* WINDOW_OFFSET rebases the framebuffer in guest memory. Viewport and
++     * scissor remain relative to this window. SURFACE_CLIP's low halves are
++     * not the address offset: titles commonly write both, but they are
++     * independent registers. In particular, post-FX atlas windows become
++     * ordinary targets whose addresses match the later texture fetches.
++     * The horizontal offset is in pixels (including AA samples); vertical
++     * rows already use the physical pitch. */
++    const u32 window = rsx_dsp_reg(rsx, M_WINDOW_OFFSET);
++    const u32 wx = (window & 0xFFFFu) * out->aa_sx;
++    const u32 wy = window >> 16;
++    if (wx || wy) {
++        const u32 cbpp = out->color_format == 11u ? 8u
++                       : out->color_format == 12u ? 16u
++                       : out->color_format <= 3u ? 2u
++                       : out->color_format == 9u ? 1u
++                       : out->color_format == 10u ? 2u : 4u;
++        for (u32 i = 0; i < 4; ++i)
++            out->color_offset[i] += wx * cbpp + wy * out->color_pitch[i];
++        out->zeta_offset += wx * (out->depth_format == 1u ? 2u : 4u)
++                            + wy * out->zeta_pitch;
++    }
+ }
+ 
+ void rsx_dsp_get_viewport(const rsx_dispatch* rsx, rsx_dsp_viewport* out)
