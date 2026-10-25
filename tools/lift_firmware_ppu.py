@@ -25,7 +25,18 @@ MODULES = (("libpamf", 0x28100000, 0x0012),
            ("libavcdec", 0x28700000, 0x0025),
            ("libvpost", 0x28A00000, 0x0008),
            ("libapostsrc_mini", 0x28B00000, 0),
-           ("libsail", 0x28000000, 0x001D))
+           ("libsail", 0x28000000, 0x001D),
+           ("libsre", 0x28C00000, 0))
+
+# SRE also exports synchronization/scheduling APIs served by the host runtime.
+# Bind its real overlay implementation without silently replacing those APIs.
+EXPORT_LIBRARIES = {"libsre": frozenset({"cellOvis"})}
+
+
+def runtime_exports(module, exports):
+    allowed = EXPORT_LIBRARIES.get(module)
+    return {name: values for name, values in exports.items()
+            if not name.startswith('!') and (allowed is None or name in allowed)}
 
 
 def variable_tables(prx, image, base):
@@ -99,6 +110,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("decrypted", type=Path)
     ap.add_argument("--output", required=True, type=Path)
+    ap.add_argument("--only", nargs='+', choices=[name for name, _, _ in MODULES],
+                    help="Re-lift selected modules; reuse existing translations for the rest")
     args = ap.parse_args()
     descriptions = []
     prepared = []
@@ -151,7 +164,8 @@ def main():
         ranges_file.write_text(json.dumps([dict(start=hex(lo), end=hex(hi)) for lo, hi in excluded]))
         seeds_path.write_text(json.dumps([dict(start=hex(a), end=hex(b))
             for a, b in zip(seeds, seeds[1:] + [base + end])]))
-        subprocess.run([sys.executable, str(SDK / "ppu_lifter.py"),
+        if args.only is None or name in args.only:
+            subprocess.run([sys.executable, str(SDK / "ppu_lifter.py"),
                         str(out / (name + "_image.bin")), "--raw", "--base", hex(base),
                         "--toc", exports["toc"], "--functions", str(out / (name + "_functions.json")),
                         "--code-end", hex(base + end), "--hle-stubs", str(hle),
@@ -165,7 +179,7 @@ def main():
                 foreign_calls.append(symbol)
         descriptions.append((name, base, module_id, exports))
     function_providers = {nid: name for name, _, _, exp in descriptions
-                          for lib, items in exp["exports"].items() if not lib.startswith("!")
+                          for items in runtime_exports(name, exp["exports"]).values()
                           for nid in items}
     for name, _, _, _, _, imports, _, _, _ in prepared:
         for items in imports.values():
@@ -189,8 +203,7 @@ def main():
         lines += [f'extern "C" const func_entry {name}_function_table[];',
                   f'extern "C" const uint64_t {name}_function_table_count;',
                   f'static const prx_export {name}_exports[] = {{']
-        for lib, items in exp["exports"].items():
-            if lib.startswith("!"): continue
+        for items in runtime_exports(name, exp["exports"]).values():
             for nid, opd in items.items():
                 lines.append(f'    {{{nid}u, 0x{int(opd, 0) - base:X}u}},')
         lines += ['};']
@@ -209,7 +222,10 @@ def main():
                   f'    prx_module {name} = {{"{name}", 0x{base:X}, {name}_image, {name}_size,',
                   f'        (const prx_func_entry*){name}_function_table, {name}_function_table_count,',
                   f'        {name}_exports, sizeof({name}_exports)/sizeof(prx_export)}};',
-                  f'    if (!prx_load_module(&{name}, bind_function).ok) std::abort();',
+                  ]
+        if name in ('libvdec', 'libavcdec'):
+            lines += [f'    if (std::getenv("BEN10_HOST_VIDEO")) {name}.export_count = 0;']
+        lines += [f'    if (!prx_load_module(&{name}, bind_function).ok) std::abort();',
                   f'    std::free({name}_image);']
     lines += ['}', f'static unsigned state[{len(descriptions)}];',
               'static int32_t start_module(unsigned index) {',
@@ -219,6 +235,8 @@ def main():
     for i, (name, _, _, exp) in enumerate(descriptions):
         start = exp["exports"].get("!syslib", {}).get("0xBC9A0086")
         lines += [f'    case {i}:']
+        if name in ('libvdec', 'libavcdec'):
+            lines += ['        if (std::getenv("BEN10_HOST_VIDEO")) break;']
         for dep in sorted(dependencies[name]):
             lines += [f'        if ((result = start_module({indices[dep]}))) break;']
         if start:

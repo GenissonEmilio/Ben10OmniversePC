@@ -143,6 +143,9 @@ if(BEN10_BUILD_GAME)
     file(GLOB CODEC_SOURCES CONFIGURE_DEPENDS "${SPU_CODEC_DIR}/*/spu_recomp.c")
     if(CODEC_SOURCES AND EXISTS "${SPU_CODEC_DIR}/spu_codecs.c")
         list(APPEND CODEC_SOURCES "${SPU_CODEC_DIR}/spu_codecs.c")
+        if(EXISTS "${SPU_CODEC_DIR}/spu_codec_variants.c")
+            list(APPEND CODEC_SOURCES "${SPU_CODEC_DIR}/spu_codec_variants.c")
+        endif()
         target_sources(Ben10OmniverseRecomp PRIVATE ${CODEC_SOURCES})
         set_source_files_properties(${CODEC_SOURCES} PROPERTIES
             COMPILE_OPTIONS "-O1;-w;-ffp-contract=off"

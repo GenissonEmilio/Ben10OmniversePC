@@ -12,8 +12,9 @@ compilar o executável ou abrir uma janela com validar gameplay.
 A execução nativa já chegou à tela **Press Start**, com renderização Vulkan,
 entrada via API de controle e criação/reabertura de um save de teste. Isso foi
 medido com o player de vídeo desativado apenas para diagnóstico. Também foram
-traduzidos dez módulos PPU e 24 programas SPU de mídia do firmware do próprio
-disco. A reprodução SAIL e a transição depois de “Loading content” ainda
+traduzidos onze módulos PPU e 24 programas SPU de mídia do firmware do próprio
+disco, além de oito variantes OVIS que compartilham endereços SPU. A reprodução
+SAIL e a transição depois de “Loading content” ainda
 impedem considerar o port pronto. Veja
 [docs/VALIDATION.md](docs/VALIDATION.md).
 
@@ -60,7 +61,7 @@ python3 tools/lift_jobs.py "$elf" --output "$data/native/jobs"
 python3 tools/lift_overlays.py "$elf" --images "$data/native/analysis/$hash/spu" \
   --output "$data/native/overlays"
 # Opcional: tradução experimental da mídia, usando o firmware 4.25 do disco.
-# "decrypted" deve conter os dez .prx descriptografados listados em
+# "decrypted" deve conter os onze .prx descriptografados listados em
 # tools/lift_firmware_ppu.py; dev_flash é a árvore extraída desse firmware.
 python3 tools/lift_firmware_spu.py /caminho/dev_flash/sys/external/flashATRAC.pic \
   --output "$data/native/firmware-spu"
@@ -87,6 +88,21 @@ BEN10_FIRMWARE_PPU_DIR="$data/native/firmware-ppu" \
 PS3_DEV_FLASH=/caminho/dev_flash \
 scripts/probe-native.sh 60
 ```
+
+`libsre` fornece somente os quatro exports `cellOvis`; o scheduler continua
+na implementação pública corrigida. O tradutor de codecs também separa os
+segmentos OVIS sobrepostos, preservando o ELF original para fingerprints e DMA.
+Para regenerar apenas essas variantes a partir de um inventário já traduzido:
+
+```bash
+python3 tools/lift_spu_variants.py "$data/native/firmware-codecs"
+```
+
+O diagnóstico `BEN10_HOST_VIDEO=1`, usado junto de `BEN10_LLE_MEDIA=1`, mantém
+o player SAIL recompilado e usa o `cellVdec` com FFmpeg do runtime. Requer as
+bibliotecas FFmpeg com a mesma versão principal dos headers usados no build.
+Nesse teste foram observados decodificação de AUs e callbacks de vídeo; a
+imagem ainda não foi apresentada corretamente. Não é uma opção pronta para uso.
 
 O build local ativa AVX2 apenas quando o processador oferece esse recurso.
 As regressões verificam a aritmética vetorial contra a referência escalar;

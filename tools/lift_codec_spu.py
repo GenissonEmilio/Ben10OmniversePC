@@ -50,6 +50,8 @@ def main():
                                    register_fn="ben10_register_codec_spu", constructor=True),
                    registrations, fingerprints, image_ids=ids)
     (args.output / "inventory.json").write_text(json.dumps(inventory, indent=2))
+    from lift_spu_variants import lift_variants
+    lift_variants(args.output)
     print(f"{len(inventory)} programas SPU de codec traduzidos. Validar reprodução antes de publicar.")
 
 

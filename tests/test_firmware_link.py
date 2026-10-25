@@ -26,3 +26,14 @@ class VariableReferences(unittest.TestCase):
         with self.assertRaises(ValueError): apply_variable_refs(image, 0, 0, 1)
         struct.pack_into('>III', image, 0, 1, 63, 0)
         with self.assertRaises(ValueError): apply_variable_refs(image, 0, 0, 1)
+
+
+class ExportPolicy(unittest.TestCase):
+    def test_sre_binds_overlay_apis_without_replacing_scheduler(self):
+        from lift_firmware_ppu import runtime_exports
+        exports = {'cellOvis': {'0xA876C911': '0x1000'},
+                   'cellSpurs': {'0x12345678': '0x2000'},
+                   'cellSync': {'0x87654321': '0x3000'},
+                   '!syslib': {'0xBC9A0086': '0x4000'}}
+        self.assertEqual(runtime_exports('libsre', exports), {'cellOvis': exports['cellOvis']})
+        self.assertEqual(set(runtime_exports('libsail', exports)), {'cellOvis', 'cellSpurs', 'cellSync'})

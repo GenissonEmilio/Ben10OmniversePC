@@ -1,0 +1,16 @@
+diff --git a/runtime/spu/spu_workload.c b/runtime/spu/spu_workload.c
+index 2008961..f3d29f6 100644
+--- a/runtime/spu/spu_workload.c
++++ b/runtime/spu/spu_workload.c
+@@ -1204,6 +1204,11 @@ void spu_taskset_line_committed(uint32_t line)
+ int spu_taskset_wait_signal(uint32_t taskset_ea, uint32_t taskId)
+ {
+     if (!taskset_ea || taskId >= 128) return 0;
++    /* A task can create peers through the SPU task library, then park while
++     * those peers produce its next work item. No PPU CreateTask or task exit
++     * necessarily follows that publication. Admit enabled ready/pending peers
++     * before blocking; the scheduler's run mask prevents duplicate dispatch. */
++    spu_taskset_start_pending(taskset_ea);
+     /* ran= is the wall time this task spent OUT of the wait (decode/mix work
+      * per round) -- decisive for "is the Bink decode CPU-bound". TLS: each
+      * task runs on its own host thread. */

@@ -1,0 +1,24 @@
+diff --git a/runtime/spu/spu_workload.c b/runtime/spu/spu_workload.c
+index 2008961..48f851a 100644
+--- a/runtime/spu/spu_workload.c
++++ b/runtime/spu/spu_workload.c
+@@ -140,6 +140,7 @@ int spu_elf_load_to_ls(const uint8_t* image, size_t image_size, uint8_t* ls, uin
+         if (p_type != 1 /*PT_LOAD*/) continue;
+         uint32_t p_offset = rd_be32(ph + 0x04);
+         uint32_t p_vaddr  = rd_be32(ph + 0x08);
++        uint32_t p_paddr  = rd_be32(ph + 0x0C);
+         uint32_t p_filesz = rd_be32(ph + 0x10);
+         uint32_t p_memsz  = rd_be32(ph + 0x14);
+ 
+@@ -147,6 +148,11 @@ int spu_elf_load_to_ls(const uint8_t* image, size_t image_size, uint8_t* ls, uin
+         if ((uint64_t)p_vaddr + p_memsz > SPU_LS_SIZE)            return 0;
+         if ((uint64_t)p_offset + p_filesz > image_size)          return 0;
+ 
++        /* OVIS assigns overlay payloads physical addresses beyond the 256 KiB
++         * LS. They live in an EA table and are streamed to their shared vaddr
++         * on demand; eagerly copying all banks leaves only the last variant. */
++        if (p_paddr >= SPU_LS_SIZE) continue;
++
+         if (p_filesz) memcpy(ls + p_vaddr, image + p_offset, p_filesz);
+         if (p_memsz > p_filesz)
+             memset(ls + p_vaddr + p_filesz, 0, p_memsz - p_filesz);
