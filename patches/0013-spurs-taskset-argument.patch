@@ -1,0 +1,36 @@
+diff --git a/libs/spurs/cellSpurs.c b/libs/spurs/cellSpurs.c
+index 19a8516..fbf6362 100644
+--- a/libs/spurs/cellSpurs.c
++++ b/libs/spurs/cellSpurs.c
+@@ -899,7 +899,7 @@ s32 cellSpursCreateTasksetWithAttribute(CellSpurs* spurs,
+     const CellSpursTasksetAttribute* attr_h = GUEST_PTR(attr, const CellSpursTasksetAttribute*);
+     u32 size = attr_h->tasksetSize;
+     if (size != 0x1900u && size != 0x2900u) return (s32)0x80410902u;
+-    return spurs_create_taskset(spurs, taskset, 0, NULL, 0, size);
++    return spurs_create_taskset(spurs, taskset, attr_h->args, NULL, 0, size);
+ }
+ 
+ s32 cellSpursDestroyTaskset(CellSpursTaskset* taskset)
+@@ -1251,17 +1251,19 @@ s32 cellSpursCreateTaskWithAttribute(CellSpursTaskset* taskset,
+                                attr_h->lsPattern_ea, attr_h->argument_ea);
+ }
+ 
+-/* The SDK's versioned taskset-attribute initializer. We forward taskset creation
+- * through CreateTaskset (which ignores the attribute), so just zero the struct. */
++/* Retain the taskset argument: the SPURS policy delivers it in r4 to every
++ * task, independently of the per-task argument in r3. Media codecs use it
++ * as their shared control-block pointer. */
+ s32 _cellSpursTasksetAttributeInitialize(CellSpursTasksetAttribute* attr,
+                                          u32 revision, u32 sdkVersion, u64 argTaskset,
+                                          u64 priority, u32 maxContention)
+ {
+-    (void)sdkVersion; (void)argTaskset; (void)priority; (void)maxContention;
++    (void)sdkVersion; (void)priority; (void)maxContention;
+     if (!attr) return CELL_SPURS_TASK_ERROR_NULL_POINTER;
+     attr = GUEST_PTR(attr, CellSpursTasksetAttribute*);
+     memset(attr, 0, sizeof(CellSpursTasksetAttribute));
+     attr->revision = revision ? revision : 1;
++    attr->args = argTaskset;
+     attr->tasksetSize = CSTS_STRUCT_END;
+     printf("[cellSpurs] _TasksetAttributeInitialize(rev=%u)\n", revision);
+     return CELL_OK;

@@ -1,0 +1,23 @@
+diff --git a/libs/system/cellSysmodule.c b/libs/system/cellSysmodule.c
+index 93eba8c..bde24cf 100644
+--- a/libs/system/cellSysmodule.c
++++ b/libs/system/cellSysmodule.c
+@@ -84,6 +84,7 @@ static const char* sysmodule_id_to_name(u16 id)
+ s32 cellSysmoduleInitialize(void) { return CELL_OK; }
+ s32 cellSysmoduleFinalize(void)   { return CELL_OK; }
+ 
++extern s32 ben10_start_lle_module(u16 id) __attribute__((weak));
+ s32 cellSysmoduleLoadModule(u16 id)
+ {
+     printf("[cellSysmodule] LoadModule(id=0x%04X '%s')\n",
+@@ -96,6 +97,10 @@ s32 cellSysmoduleLoadModule(u16 id)
+     if (s_module_loaded[slot])
+         return CELL_OK;  /* Already loaded — return success (some games treat DUPLICATED as fatal) */
+ 
++    if (ben10_start_lle_module) {
++        s32 result = ben10_start_lle_module(id);
++        if (result) return result;
++    }
+     s_module_loaded[slot] = 1;
+     return CELL_OK;
+ }

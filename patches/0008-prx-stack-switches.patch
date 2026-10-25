@@ -1,0 +1,118 @@
+diff --git a/tools/ppu_lifter.py b/tools/ppu_lifter.py
+index 9d9df71..da3f93d 100644
+--- a/tools/ppu_lifter.py
++++ b/tools/ppu_lifter.py
+@@ -4444,13 +4444,38 @@ def discover_jump_tables(all_insns, read_u32, toc, text_lo, text_hi, func_starts
+             # Widening is safe for the cases that already worked: the walk stops
+             # at the NEAREST definition of `cand`, so when one exists inside the
+             # window the result is unchanged.
+-            for w in reversed(win_cand):
++            # Resolve the operand at the table LOAD, before a later in-place
++            # `add base, offset, base` overwrites it with the final target.
++            for w in reversed([x for x in win_cand if x.addr < lwzx.addr]):
+                 a = [x.strip() for x in w.operands.split(',')]
+                 if not a or a[0] != cand or w.mnemonic.startswith(('st', 'lf')):
+                     continue                    # not a GPR def: a store READS it; ppu_disasm names lfs/lfd's FPR target rN
+                 if w.mnemonic in ('lwz', 'ld') and len(a) == 2 and '(r2)' in a[1]:
+                     disp = mem_disp(a[1]); r_base = cand
+                     base_is_ld = (w.mnemonic == 'ld')
++                elif w.mnemonic == 'ld' and len(a) == 2 and '(r1)' in a[1]:
++                    # A long-running worker caches a TOC table pointer in its
++                    # stack frame, then reloads it at each dispatch. Follow the
++                    # closest store to that slot, and its source's closest def.
++                    slot = mem_disp(a[1])
++                    history = [x for x in _live(_scan_lo(i), i) if x.addr < w.addr]
++                    for si in range(len(history) - 1, -1, -1):
++                        store = history[si]
++                        sa = [x.strip() for x in store.operands.split(',')]
++                        if (store.mnemonic != 'std' or len(sa) != 2 or
++                                '(r1)' not in sa[1] or mem_disp(sa[1]) != slot):
++                            continue
++                        source = sa[0]
++                        for definition in reversed(history[:si]):
++                            da = [x.strip() for x in definition.operands.split(',')]
++                            if not da or da[0] != source or definition.mnemonic.startswith(('st', 'lf')):
++                                continue
++                            if (definition.mnemonic in ('lwz', 'ld') and len(da) == 2
++                                    and '(r2)' in da[1]):
++                                disp = mem_disp(da[1]); r_base = cand
++                                base_is_ld = definition.mnemonic == 'ld'
++                            break
++                        break
+                 elif w.mnemonic in ('lwz', 'ld') and len(a) == 2 and '(' in a[1]:
+                     # TWO-LEVEL base: `lwz r30, d1(r2); lwz r11, d2(r30)`. The
+                     # table address is not in the TOC itself but in a global the
+@@ -4789,6 +4814,10 @@ def main() -> None:
+                              "treated as data, not promoted to functions. Use the "
+                              "end of the last .text section to stop .rodata in the "
+                              "R-X segment from exploding into bogus functions.")
++    parser.add_argument("--data-ranges", metavar="JSON", default=None,
++                        help="Raw input only: [{start,end}] guest-address ranges "
++                             "containing data or another architecture, excluded "
++                             "from PPU decoding without changing runtime bytes.")
+     parser.add_argument("--toc", type=lambda x: int(x, 0), default=None,
+                         help="TOC (r2) value for --raw input. Jump-table "
+                              "dispatchers load their table base TOC-relative, so "
+@@ -4825,12 +4854,44 @@ def main() -> None:
+ 
+     big_endian = not args.little_endian
+     base_addr = args.base
++    data_ranges = []
++    if args.data_ranges:
++        if not args.raw:
++            parser.error("--data-ranges requires --raw")
++        with open(args.data_ranges) as ranges_file:
++            for item in json.load(ranges_file):
++                lo, hi = int(str(item["start"]), 0), int(str(item["end"]), 0)
++                if (lo & 3 or hi & 3 or not base_addr <= lo < hi <= base_addr + len(file_data)):
++                    parser.error("invalid raw data range")
++                data_ranges.append((lo, hi))
++        data_ranges.sort()
++        if any(b > c for (_, b), (c, _) in zip(data_ranges, data_ranges[1:])):
++            parser.error("overlapping raw data ranges")
++
++    def clip_data_bounds(bounds):
++        result = []
++        for lo, hi in bounds:
++            if args.data_ranges and not base_addr <= lo < base_addr + len(file_data):
++                continue
++            for begin, end in data_ranges:
++                if begin <= lo < end:
++                    hi = lo; break
++                if lo < begin < hi:
++                    hi = begin; break
++            if lo < hi: result.append((lo, hi))
++        return result
+ 
+     # Get instructions (and keep the raw executable blobs for worker processes)
+     seg_blobs: list[tuple[int, bytes]] = []
+     if args.raw:
+-        all_insns = disassemble_bytes(file_data, base_addr, big_endian)
+-        seg_blobs = [(base_addr, file_data)]
++        cursor = base_addr
++        for lo, hi in data_ranges + [(base_addr + len(file_data), base_addr + len(file_data))]:
++            if cursor < lo:
++                seg_blobs.append((cursor, file_data[cursor - base_addr:lo - base_addr]))
++            cursor = hi
++        all_insns = []
++        for address, content in seg_blobs:
++            all_insns.extend(disassemble_bytes(content, address, big_endian))
+     else:
+         try:
+             from elf_parser import ELFFile, PT_LOAD
+@@ -4864,6 +4925,7 @@ def main() -> None:
+         detected = detect_functions(all_insns)
+         func_bounds = [(f["start"], f["end"]) for f in detected]
+ 
++    func_bounds = clip_data_bounds(func_bounds)
+     if not func_bounds:
+         print("No functions found. Use --functions to provide a function list.", file=sys.stderr)
+         sys.exit(1)
+@@ -5242,6 +5304,7 @@ def main() -> None:
+         print(f"  hle-stubs: {len(hle_stubs)} import stubs -> ps3_hle_call "
+               f"(trimmed {trimmed} overlapping function(s))")
+ 
++    func_bounds = clip_data_bounds(func_bounds)
+     print(f"Lifting {len(func_bounds)} functions...")
+ 
+     lifter = PPULifter(prefix=args.symbol_prefix, weak_emit=args.weak)

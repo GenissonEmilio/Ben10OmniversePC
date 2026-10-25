@@ -1,0 +1,19 @@
+diff --git a/libs/system/sysPrxForUser.c b/libs/system/sysPrxForUser.c
+index b2cba7b..c131012 100644
+--- a/libs/system/sysPrxForUser.c
++++ b/libs/system/sysPrxForUser.c
+@@ -332,6 +332,14 @@ s32 _sys_strlen(const char* str)
+     return (s32)strlen(s);
+ }
+ 
++char* _sys_strchr(const char* str, s32 character)
++{
++    const char* host = (const char*)yz_g2h(str);
++    if (!host) return NULL;
++    const char* found = strchr(host, character);
++    return found ? (char*)(uintptr_t)((u32)(uintptr_t)str + (u32)(found - host)) : NULL;
++}
++
+ s32 _sys_strncpy(char* dst, const char* src, u32 size)
+ {
+     char* d = (char*)yz_g2h(dst); const char* s = (const char*)yz_g2h(src);

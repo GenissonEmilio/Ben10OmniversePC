@@ -1,0 +1,19 @@
+diff --git a/runtime/ppu/ppu_context.h b/runtime/ppu/ppu_context.h
+index 4199c58..6183473 100644
+--- a/runtime/ppu/ppu_context.h
++++ b/runtime/ppu/ppu_context.h
+@@ -194,9 +194,11 @@ static inline uint8_t ppu_xer_get_byte_count(const ppu_context* ctx)
+  * -----------------------------------------------------------------------*/
+ static inline void ppu_set_stack(ppu_context* ctx, uint64_t stack_top, uint64_t stack_size)
+ {
+-    /* Place SP at the top of the allocated region, aligned down to 16 bytes,
+-     * leaving room for the minimum stack frame (48 bytes on PPC64). */
+-    uint64_t sp = (stack_top + stack_size - 48) & ~(uint64_t)0xF;
++    /* A thread's first callee may spill r3..r10 into its caller-provided
++     * parameter save area. ELFv1 needs 48 linkage bytes plus eight 8-byte
++     * slots, even when the entry point only consumes one argument. Reserving
++     * linkage alone lets firmware workers write beyond the mapped stack. */
++    uint64_t sp = (stack_top + stack_size - 112) & ~(uint64_t)0xF;
+     ctx->gpr[1] = sp;
+ }
+ 

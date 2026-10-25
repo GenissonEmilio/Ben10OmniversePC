@@ -1,0 +1,20 @@
+diff --git a/runtime/spu/spu_channels.c b/runtime/spu/spu_channels.c
+index 59f5e4b..013c0f6 100644
+--- a/runtime/spu/spu_channels.c
++++ b/runtime/spu/spu_channels.c
+@@ -1641,6 +1641,15 @@ void spu_overlay_register_sig(const uint8_t sig[16], int image_id)
+     }
+ }
+ 
++/* Signature-matched code can coexist with the swappable DSP slot. Keep its
++ * bounded residence independently so a later DSP DMA does not hide it. */
++void spu_overlay_register_sig_region(const uint8_t sig[16], uint32_t span, int image_id)
++{
++    if (!span || span > SPU_LS_SIZE || s_ovl_src_count >= SPU_OVL_SRC_MAX) return;
++    spu_overlay_register_sig(sig, image_id);
++    s_ovl_src[s_ovl_src_count - 1].span = span;
++}
++
+ /* Called from the MFC GET path after the copy: ls points at the JUST-COPIED
+  * bytes. EA match first (exact, cheap), then content signature for sizeable
+  * chunks (overlay bodies are >= 0x500 bytes). */

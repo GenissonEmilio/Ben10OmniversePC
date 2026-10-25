@@ -18,8 +18,8 @@
   [andrebrumdev/ben10-omniverse-recomp](https://github.com/andrebrumdev/ben10-omniverse-recomp).
   O fork privado necessário ao build original não está disponível neste projeto.
   Não copiamos o código do host macOS; o boot Linux usa o runtime público MIT.
-- RPCS3: ferramenta externa usada exclusivamente em modo `--decrypt` para
-  preparar o ELF local. Não executa o jogo neste projeto. O download local fica
+- RPCS3: ferramenta externa usada nos modos `--decrypt` e `--installfw` para
+  preparar o ELF e extrair o firmware do disco local. Não executa o jogo neste projeto. O download local fica
   em `artifacts/`, fora do Git. Não é redistribuído como runtime do port.
 
 Arquivos do jogo, firmware, chaves, C/C++ traduzido do jogo e o executável

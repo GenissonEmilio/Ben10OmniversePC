@@ -15,4 +15,15 @@ docker run --rm --cpus=2 --memory=4g --memory-swap=4g --network=none \
         ctest --test-dir build/validation --output-on-failure --timeout 60 -j 1
         python3 third_party/ps3recomp/tools/test_gcm_flip_stream.py
         python3 third_party/ps3recomp/tools/test_spurs_scheduler.py
+        python3 third_party/ps3recomp/tools/test_ppu_jumptables.py
+        if python3 -c '\''from pathlib import Path; raise SystemExit("avx2" not in Path("/proc/cpuinfo").read_text())'\''; then
+            "$CC" -O3 -mavx2 -ffp-contract=off -Ithird_party/ps3recomp/include \
+                third_party/ps3recomp/runtime/spu/tests/test_spu_float_neon.c -lm \
+                -o build/validation/test_spu_float_avx2
+            build/validation/test_spu_float_avx2
+            "$CC" -O3 -mavx2 -Ithird_party/ps3recomp/include \
+                third_party/ps3recomp/runtime/spu/tests/test_spu_shufb.c -lm \
+                -o build/validation/test_spu_shufb_avx2
+            build/validation/test_spu_shufb_avx2
+        fi
     '

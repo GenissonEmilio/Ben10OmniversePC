@@ -1,0 +1,39 @@
+diff --git a/runtime/spu/spu_channels.c b/runtime/spu/spu_channels.c
+index 59f5e4b..87023b9 100644
+--- a/runtime/spu/spu_channels.c
++++ b/runtime/spu/spu_channels.c
+@@ -2343,6 +2343,27 @@ void spu_indirect_branch(spu_context* ctx)
+                 if (PS3_LOG_FIRST(_n, 8))
+                     fprintf(stderr, "[spu] img=%d exit: synthesised stop 0x%04X at LS 0x%05X\n",
+                             ctx->image_id, ctx->stop_code, p0);
++                if (p0 == 0 && getenv("SPU_BAD_BRANCH_DUMP")) {
++                    const char* prefix = getenv("SPU_BAD_BRANCH_DUMP");
++                    char path[600];
++                    fprintf(stderr, "[spu-bad-branch] base=%d overlay=%d lr=%05X recent:",
++                            ctx->image_id, ctx->resident_ovl, ctx->gpr[0]._u32[0]);
++                    for (unsigned q = 0; q < 8; ++q)
++                        fprintf(stderr, " %05X", g_spu_pch[(g_spu_pch_n + q) & 7u]);
++                    fprintf(stderr, "\n");
++                    snprintf(path, sizeof path, "%s.ls", prefix);
++                    FILE* dump = fopen(path, "wb");
++                    if (dump) { fwrite(ctx->ls, 1, SPU_LS_SIZE, dump); fclose(dump); }
++                    snprintf(path, sizeof path, "%s.regs", prefix);
++                    dump = fopen(path, "w");
++                    if (dump) {
++                        for (unsigned r = 0; r < 128; ++r)
++                            fprintf(dump, "r%u=%08X %08X %08X %08X\n", r,
++                                    ctx->gpr[r]._u32[0], ctx->gpr[r]._u32[1],
++                                    ctx->gpr[r]._u32[2], ctx->gpr[r]._u32[3]);
++                        fclose(dump);
++                    }
++                }
+                 spu_halt(ctx);
+                 return;
+             }
+@@ -2841,4 +2862,4 @@ void spu_trace_rt(spu_context* ctx, uint32_t rt)
+ 
+ #ifdef __cplusplus
+ }
+-#endif
+\ No newline at end of file
++#endif

@@ -10,9 +10,11 @@ o trabalho real de importação, tradução, compilação e diagnóstico. Não c
 compilar o executável ou abrir uma janela com validar gameplay.
 
 A execução nativa já chegou à tela **Press Start**, com renderização Vulkan,
-entrada de controle e criação de um save de teste. Isso foi medido com o player
-de vídeo desativado apenas para diagnóstico. A reprodução SAIL e a transição
-depois de “Checking content” ainda impedem considerar o port pronto. Veja
+entrada via API de controle e criação/reabertura de um save de teste. Isso foi
+medido com o player de vídeo desativado apenas para diagnóstico. Também foram
+traduzidos dez módulos PPU e 24 programas SPU de mídia do firmware do próprio
+disco. A reprodução SAIL e a transição depois de “Loading content” ainda
+impedem considerar o port pronto. Veja
 [docs/VALIDATION.md](docs/VALIDATION.md).
 
 ## Preparação local
@@ -29,7 +31,7 @@ python3 tools/import_game.py '/caminho/jogo.iso'
 
 Os arquivos importados ficam em `~/.local/share/Ben10OmniversePC/game`.
 O executável SELF do disco precisa ser convertido para ELF com uma ferramenta
-compatível. Na validação local, RPCS3 foi usado exclusivamente com `--decrypt`;
+compatível. Na validação local, RPCS3 foi usado com `--decrypt` e `--installfw`;
 não usamos emulação como substituto da recompilação escolhida para este projeto.
 
 `tools/analyze_elf.py` valida o ELF, identifica funções/imports e extrai imagens
@@ -57,6 +59,15 @@ python3 third_party/ps3recomp/tools/build_spu_workloads.py \
 python3 tools/lift_jobs.py "$elf" --output "$data/native/jobs"
 python3 tools/lift_overlays.py "$elf" --images "$data/native/analysis/$hash/spu" \
   --output "$data/native/overlays"
+# Opcional: tradução experimental da mídia, usando o firmware 4.25 do disco.
+# "decrypted" deve conter os dez .prx descriptografados listados em
+# tools/lift_firmware_ppu.py; dev_flash é a árvore extraída desse firmware.
+python3 tools/lift_firmware_spu.py /caminho/dev_flash/sys/external/flashATRAC.pic \
+  --output "$data/native/firmware-spu"
+python3 tools/lift_firmware_ppu.py /caminho/decrypted \
+  --output "$data/native/firmware-ppu"
+python3 tools/lift_codec_spu.py "$data/native/firmware-ppu" \
+  --output "$data/native/firmware-codecs"
 scripts/build-native.sh
 ```
 
@@ -68,6 +79,18 @@ o ELF e o executável gerado são dados locais do usuário.
 mesmo sem ROM ou firmware. Isso não certifica gameplay.
 `scripts/probe-native.sh 30` faz um teste nativo limitado, com saves de
 diagnóstico separados. Um timeout desse teste não significa sucesso.
+A mídia recompilada continua opcional e pode ser diagnosticada com:
+
+```bash
+BEN10_LLE_MEDIA=1 \
+BEN10_FIRMWARE_PPU_DIR="$data/native/firmware-ppu" \
+PS3_DEV_FLASH=/caminho/dev_flash \
+scripts/probe-native.sh 60
+```
+
+O build local ativa AVX2 apenas quando o processador oferece esse recurso.
+As regressões verificam a aritmética vetorial contra a referência escalar;
+essa verificação não é uma medição de FPS do jogo.
 
 Nada derivado do jogo deve ser adicionado ao Git. Dados, código traduzido,
 firmware, saves, logs, binários e chaves são ignorados. Consulte
